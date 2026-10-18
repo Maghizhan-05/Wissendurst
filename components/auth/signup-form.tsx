@@ -83,7 +83,7 @@ export function SignupForm() {
         <Field label="Phone (WhatsApp)" htmlFor="phone" required>
           <Input
             id="phone"
-            name="phone (WhatsApp)"
+            name="phone"
             type="tel"
             autoComplete="tel"
             required
