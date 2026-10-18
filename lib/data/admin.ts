@@ -94,19 +94,64 @@ export async function getAllEventsAdmin(): Promise<EventRow[]> {
   return (data as EventRow[]) ?? [];
 }
 
-/** Top-level events usable as a "broader event" parent, minus `excludeId`. */
-export async function getTopLevelEventOptions(
+export interface ParentOption {
+  id: string;
+  title: string;
+  depth: number; // 0 = top-level event, 1 = sub-event
+}
+
+/**
+ * Events that can be chosen as a "broader event" parent: depth 0 or 1 (so a
+ * child lands at depth 1 or 2 — three tiers max), excluding `excludeId` and
+ * everything under it (can't nest an event inside its own subtree).
+ */
+export async function getParentEventOptions(
   excludeId?: string,
-): Promise<{ id: string; title: string }[]> {
+): Promise<ParentOption[]> {
   const supabase = await createClient();
-  let query = supabase
-    .from("events")
-    .select("id, title")
-    .is("parent_event_id", null)
-    .order("title", { ascending: true });
-  if (excludeId) query = query.neq("id", excludeId);
-  const { data } = await query;
-  return (data as { id: string; title: string }[]) ?? [];
+  const { data } = await supabase.from("events").select("id, title, parent_event_id");
+  const rows =
+    (data as { id: string; title: string; parent_event_id: string | null }[]) ??
+    [];
+
+  const parentOf = new Map(rows.map((r) => [r.id, r.parent_event_id]));
+  const childrenOf = new Map<string, string[]>();
+  for (const r of rows) {
+    if (r.parent_event_id) {
+      const arr = childrenOf.get(r.parent_event_id) ?? [];
+      arr.push(r.id);
+      childrenOf.set(r.parent_event_id, arr);
+    }
+  }
+
+  const depthOf = (id: string): number => {
+    let d = 0;
+    let cur = parentOf.get(id) ?? null;
+    const seen = new Set<string>([id]);
+    while (cur && !seen.has(cur)) {
+      seen.add(cur);
+      d++;
+      cur = parentOf.get(cur) ?? null;
+    }
+    return d;
+  };
+
+  // Ids inside excludeId's subtree (excludeId included) are not valid parents.
+  const excluded = new Set<string>();
+  if (excludeId) {
+    const stack = [excludeId];
+    while (stack.length) {
+      const id = stack.pop() as string;
+      if (excluded.has(id)) continue;
+      excluded.add(id);
+      for (const k of childrenOf.get(id) ?? []) stack.push(k);
+    }
+  }
+
+  return rows
+    .map((r) => ({ id: r.id, title: r.title, depth: depthOf(r.id) }))
+    .filter((o) => o.depth < 2 && !excluded.has(o.id))
+    .sort((a, b) => a.depth - b.depth || a.title.localeCompare(b.title));
 }
 
 export async function getEventByIdAdmin(id: string): Promise<EventRow | null> {

@@ -60,6 +60,36 @@ export async function getEventById(id: string): Promise<EventRow | null> {
   return (data as EventRow) ?? null;
 }
 
+/** Ancestors of an event, root first, excluding the event itself. */
+export async function getEventAncestors(event: EventRow): Promise<EventRow[]> {
+  const chain: EventRow[] = [];
+  let parentId = event.parent_event_id;
+  // Bounded walk (tree is max 3 deep); the Set guards against bad data.
+  const seen = new Set<string>([event.id]);
+  while (parentId && !seen.has(parentId) && chain.length < 5) {
+    seen.add(parentId);
+    const parent = await getEventById(parentId);
+    if (!parent) break;
+    chain.unshift(parent);
+    parentId = parent.parent_event_id;
+  }
+  return chain;
+}
+
+/**
+ * The UPI id to charge for an event: its own, else the nearest ancestor's,
+ * else null (caller falls back to the site default).
+ */
+export async function resolveEventUpiId(event: EventRow): Promise<string | null> {
+  if (event.upi_id && event.upi_id.trim()) return event.upi_id.trim();
+  const ancestors = await getEventAncestors(event); // root → parent
+  for (let i = ancestors.length - 1; i >= 0; i--) {
+    const u = ancestors[i].upi_id;
+    if (u && u.trim()) return u.trim();
+  }
+  return null;
+}
+
 export async function getFeaturedEvents(limit = 4): Promise<EventRow[]> {
   const supabase = await createClient();
   const { data } = await supabase

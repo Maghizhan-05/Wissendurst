@@ -42,6 +42,17 @@ export const eventSchema = z.object({
   is_live: z.coerce.boolean().optional().default(false),
   // Empty string = top-level event; a uuid = this is a sub-event of that event.
   parent_event_id: z.string().uuid().or(z.literal("")).optional().default(""),
+  // Per-event UPI id for the payment QR (any level). Empty = inherit / default.
+  upi_id: z.string().trim().max(120).optional().default(""),
+  // Sibling discount, meaningful on a broader (top-level) event.
+  discount_enabled: z.coerce.boolean().optional().default(false),
+  discount_amount_rupees: z.coerce
+    .number()
+    .int("Whole rupees only")
+    .min(0, "Discount can't be negative")
+    .max(1_000_000)
+    .optional()
+    .default(0),
 });
 
 export type EventInput = z.infer<typeof eventSchema>;

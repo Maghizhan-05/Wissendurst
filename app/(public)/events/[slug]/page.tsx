@@ -10,8 +10,9 @@ import {
   GraduationCap,
   ListChecks,
   Layers,
-  ArrowLeft,
+  ChevronRight,
 } from "lucide-react";
+import type { EventRow } from "@/types/database";
 import { Container } from "@/components/ui/container";
 import { Badge } from "@/components/ui/badge";
 import { EventThumb } from "@/components/events/category-visual";
@@ -19,8 +20,9 @@ import { EventCard } from "@/components/events/event-card";
 import { RegisterCta } from "@/components/events/register-cta";
 import {
   getEventBySlug,
-  getEventById,
   getSubEvents,
+  getSubEventCounts,
+  getEventAncestors,
   getEventRegistrationCounts,
 } from "@/lib/data/events";
 import {
@@ -65,11 +67,16 @@ export default async function EventPage({
 
   // A broader event with several sub-events renders as a hub.
   if (subEvents.length > 1) {
-    const registeredIds = await getMyRegisteredEventIds();
+    const [registeredIds, counts, ancestors] = await Promise.all([
+      getMyRegisteredEventIds(),
+      getSubEventCounts(),
+      getEventAncestors(event),
+    ]);
     return (
       <article className="py-10 md:py-14">
         <EventBackground category={event.category} slug={event.slug} />
         <Container>
+          <Breadcrumb ancestors={ancestors} />
           <div className="max-w-3xl">
             <div className="flex flex-wrap items-center gap-2">
               <Badge tone="brand">
@@ -106,6 +113,7 @@ export default async function EventPage({
                 key={sub.id}
                 event={sub}
                 registered={registeredIds.has(sub.id)}
+                subEventCount={counts[sub.id] ?? 0}
               />
             ))}
           </div>
@@ -115,11 +123,11 @@ export default async function EventPage({
   }
 
   // Leaf: a standalone event or a single sub-event — the register page.
-  const [user, existing, counts, parent] = await Promise.all([
+  const [user, existing, counts, ancestors] = await Promise.all([
     getUser(),
     getMyRegistrationForEvent(event.id),
     getEventRegistrationCounts(),
-    event.parent_event_id ? getEventById(event.parent_event_id) : null,
+    getEventAncestors(event),
   ]);
 
   const taken = counts[event.id] ?? 0;
@@ -172,14 +180,7 @@ export default async function EventPage({
     <article className="py-10 md:py-14">
       <EventBackground category={event.category} slug={event.slug} />
       <Container>
-        {parent && (
-          <Link
-            href={`/events/${parent.slug}`}
-            className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-foreground"
-          >
-            <ArrowLeft className="size-4" /> Part of {parent.title}
-          </Link>
-        )}
+        <Breadcrumb ancestors={ancestors} />
         {/* Hero */}
         <div className="grid gap-8 lg:grid-cols-2 lg:gap-12">
           <div className="relative order-2 aspect-[16/11] overflow-hidden rounded-3xl border border-border lg:order-1">
@@ -283,5 +284,24 @@ export default async function EventPage({
         </div>
       </Container>
     </article>
+  );
+}
+
+/** Root → … → immediate-parent trail above the hero. */
+function Breadcrumb({ ancestors }: { ancestors: EventRow[] }) {
+  return (
+    <nav className="mb-6 flex flex-wrap items-center gap-1.5 text-sm text-muted">
+      <Link href="/events" className="hover:text-foreground">
+        All events
+      </Link>
+      {ancestors.map((a) => (
+        <span key={a.id} className="flex items-center gap-1.5">
+          <ChevronRight className="size-3.5 shrink-0" />
+          <Link href={`/events/${a.slug}`} className="hover:text-foreground">
+            {a.title}
+          </Link>
+        </span>
+      ))}
+    </nav>
   );
 }

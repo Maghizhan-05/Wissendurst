@@ -180,13 +180,11 @@ function GroupCard({ group: g }: { group: CollectionGroup }) {
 
 function SubRow({ c }: { c: EventCollection }) {
   const free = c.expectedPaise === 0;
-  return (
-    <Link
-      href={`/admin/registrations?event=${c.event.id}`}
-      className="block rounded-lg px-1 py-1.5 transition-colors hover:bg-surface-2/50"
-    >
+  const inner = (
+    <>
       <div className="flex items-center justify-between gap-2 text-xs">
-        <span className="truncate font-medium text-foreground">
+        <span className="inline-flex min-w-0 items-center gap-1 truncate font-medium text-foreground">
+          {c.isContainer && <Layers className="size-3 shrink-0 text-muted" />}
           {c.event.title}
         </span>
         <span className="shrink-0 font-mono text-muted">
@@ -208,6 +206,19 @@ function SubRow({ c }: { c: EventCollection }) {
           />
         </div>
       )}
+    </>
+  );
+
+  // Containers have no direct registrations to filter on; show them read-only.
+  if (c.isContainer) {
+    return <div className="rounded-lg px-1 py-1.5">{inner}</div>;
+  }
+  return (
+    <Link
+      href={`/admin/registrations?event=${c.event.id}`}
+      className="block rounded-lg px-1 py-1.5 transition-colors hover:bg-surface-2/50"
+    >
+      {inner}
     </Link>
   );
 }

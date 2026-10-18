@@ -53,12 +53,18 @@ function rowFromInput(input: EventInput) {
     featured: !!input.featured,
     is_live: !!input.is_live,
     parent_event_id: input.parent_event_id ? input.parent_event_id : null,
+    upi_id: input.upi_id ? input.upi_id : null,
+    discount_enabled: !!input.discount_enabled,
+    discount_amount: Math.round((input.discount_amount_rupees ?? 0) * 100),
   };
 }
 
+const MAX_DEPTH = 2; // root(0) -> sub(1) -> sub-sub(2): three tiers.
+
 /**
- * Keeps the sub-event tree one level deep and acyclic. Returns an error
- * message when the chosen parent is invalid, or null when it's fine.
+ * Keeps the sub-event tree at most three levels deep (event → sub-event →
+ * sub-sub-event) and acyclic. Returns an error message when the chosen parent
+ * is invalid, or null when it's fine.
  */
 async function validateParent(
   supabase: Awaited<ReturnType<typeof createClient>>,
@@ -69,23 +75,60 @@ async function validateParent(
   if (selfId && parentId === selfId)
     return "An event can't be its own broader event.";
 
-  const { data: parent } = await supabase
+  const { data } = await supabase
     .from("events")
-    .select("id, parent_event_id")
-    .eq("id", parentId)
-    .maybeSingle();
-  if (!parent) return "That broader event no longer exists.";
-  if ((parent as { parent_event_id: string | null }).parent_event_id !== null)
-    return "Pick a top-level event as the broader event (sub-events go one level deep).";
+    .select("id, parent_event_id");
+  const rows = (data ?? []) as { id: string; parent_event_id: string | null }[];
+  const parentOf = new Map(rows.map((r) => [r.id, r.parent_event_id]));
+  const childrenOf = new Map<string, string[]>();
+  for (const r of rows) {
+    if (r.parent_event_id) {
+      const arr = childrenOf.get(r.parent_event_id) ?? [];
+      arr.push(r.id);
+      childrenOf.set(r.parent_event_id, arr);
+    }
+  }
+  if (!parentOf.has(parentId)) return "That broader event no longer exists.";
+
+  // Depth of the chosen parent (root = 0), with a cycle guard.
+  const depthOf = (id: string): number => {
+    let d = 0;
+    let cur = parentOf.get(id) ?? null;
+    const seen = new Set<string>([id]);
+    while (cur && !seen.has(cur)) {
+      seen.add(cur);
+      d++;
+      cur = parentOf.get(cur) ?? null;
+    }
+    return d;
+  };
+  // Height of a subtree (leaf = 0).
+  const heightOf = (id: string): number => {
+    const kids = childrenOf.get(id) ?? [];
+    if (kids.length === 0) return 0;
+    return 1 + Math.max(...kids.map(heightOf));
+  };
 
   if (selfId) {
-    const { count } = await supabase
-      .from("events")
-      .select("id", { count: "exact", head: true })
-      .eq("parent_event_id", selfId);
-    if ((count ?? 0) > 0)
-      return "This event already has sub-events, so it can't become a sub-event itself.";
+    // The chosen parent must not sit inside this event's own subtree.
+    let cur: string | null = parentId;
+    const seen = new Set<string>();
+    while (cur && !seen.has(cur)) {
+      if (cur === selfId)
+        return "You can't move an event under one of its own sub-events.";
+      seen.add(cur);
+      cur = parentOf.get(cur) ?? null;
+    }
   }
+
+  const parentDepth = depthOf(parentId);
+  if (parentDepth >= MAX_DEPTH)
+    return "Sub-events go at most three levels deep (event → sub-event → sub-sub-event).";
+
+  const selfHeight = selfId ? heightOf(selfId) : 0;
+  if (parentDepth + 1 + selfHeight > MAX_DEPTH)
+    return "That would make the tree more than three levels deep — move or remove this event's sub-events first.";
+
   return null;
 }
 
@@ -110,6 +153,9 @@ function parseEventForm(formData: FormData) {
     featured: formData.get("featured") === "on",
     is_live: formData.get("is_live") === "on",
     parent_event_id: formData.get("parent_event_id") || "",
+    upi_id: formData.get("upi_id"),
+    discount_enabled: formData.get("discount_enabled") === "on",
+    discount_amount_rupees: formData.get("discount_amount_rupees") || 0,
   });
 }
 

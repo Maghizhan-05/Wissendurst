@@ -7,7 +7,8 @@ import { PaymentFlow } from "@/components/payment/payment-flow";
 import { PaymentBadge } from "@/components/ui/badge";
 import { requireProfile } from "@/lib/auth";
 import { getMyRegistration } from "@/lib/data/registrations";
-import { upiQrDataUrl } from "@/lib/payment";
+import { resolveEventUpiId } from "@/lib/data/events";
+import { upiQrDataUrl, defaultUpiId } from "@/lib/payment";
 import { formatINR } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Payment" };
@@ -23,9 +24,10 @@ export default async function PaymentPage({ params }: PageProps<"/dashboard/paym
 
   const { event } = registration;
   const note = `WD27 ${profile.participant_id} ${event.slug}`.slice(0, 40);
-  const qr = await upiQrDataUrl(registration.amount, note);
-  const upiId = process.env.NEXT_PUBLIC_UPI_ID ?? "wissendrust@examplebank";
+  const upiId = (await resolveEventUpiId(event)) ?? defaultUpiId();
+  const qr = await upiQrDataUrl(registration.amount, note, upiId);
   const payee = process.env.NEXT_PUBLIC_UPI_PAYEE_NAME ?? "Wissendrust 27";
+  const discount = event.registration_fee - registration.amount;
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -54,10 +56,22 @@ export default async function PaymentPage({ params }: PageProps<"/dashboard/paym
         <div className="rounded-2xl border border-border bg-surface p-6">
           <div className="flex items-baseline justify-between">
             <p className="text-sm text-muted">Amount to pay</p>
-            <p className="font-display text-3xl font-semibold text-foreground">
-              {formatINR(registration.amount)}
-            </p>
+            <div className="text-right">
+              {discount > 0 && (
+                <p className="text-sm text-muted line-through">
+                  {formatINR(event.registration_fee)}
+                </p>
+              )}
+              <p className="font-display text-3xl font-semibold text-foreground">
+                {formatINR(registration.amount)}
+              </p>
+            </div>
           </div>
+          {discount > 0 && (
+            <p className="mt-2 inline-flex items-center gap-1 rounded-full bg-success/12 px-2.5 py-0.5 text-xs font-medium text-success">
+              Sibling discount applied — you saved {formatINR(discount)}
+            </p>
+          )}
 
           <div className="mt-6 flex flex-col items-center rounded-2xl border border-border bg-white p-5">
             <Image

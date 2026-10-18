@@ -27,8 +27,8 @@ export default async function AdminEventsPage() {
   await requireScope("events");
   const events = await getAllEventsAdmin();
 
-  // Nest sub-events under their parent: each parent row is followed by its
-  // sub-events (indented); standalone events render on their own.
+  // Nest sub-events under their parent (up to three tiers): each event row is
+  // followed by its sub-events, indented by depth.
   const childrenByParent = new Map<string, EventRow[]>();
   for (const e of events) {
     if (e.parent_event_id) {
@@ -37,15 +37,18 @@ export default async function AdminEventsPage() {
       childrenByParent.set(e.parent_event_id, arr);
     }
   }
-  const rows: { event: EventRow; isChild: boolean; childCount: number }[] = [];
-  for (const e of events) {
-    if (e.parent_event_id) continue; // children are emitted under their parent
+  const rows: { event: EventRow; depth: number; childCount: number }[] = [];
+  const emit = (e: EventRow, depth: number) => {
     const kids = (childrenByParent.get(e.id) ?? []).sort((a, b) =>
       a.title.localeCompare(b.title),
     );
-    rows.push({ event: e, isChild: false, childCount: kids.length });
-    for (const k of kids) rows.push({ event: k, isChild: true, childCount: 0 });
+    rows.push({ event: e, depth, childCount: kids.length });
+    for (const k of kids) emit(k, depth + 1);
+  };
+  for (const e of events) {
+    if (!e.parent_event_id) emit(e, 0);
   }
+  const MAX_DEPTH = 2; // event(0) → sub(1) → sub-sub(2)
 
   return (
     <div className="space-y-6">
@@ -85,11 +88,14 @@ export default async function AdminEventsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {rows.map(({ event: e, isChild, childCount }) => (
+              {rows.map(({ event: e, depth, childCount }) => (
                 <tr key={e.id} className="bg-surface hover:bg-surface-2/40">
                   <td className="px-4 py-3">
-                    <div className={isChild ? "flex items-start gap-2 pl-5" : ""}>
-                      {isChild && (
+                    <div
+                      className="flex items-start gap-2"
+                      style={{ paddingLeft: depth * 20 }}
+                    >
+                      {depth > 0 && (
                         <CornerDownRight className="mt-0.5 size-4 shrink-0 text-muted" />
                       )}
                       <div className="min-w-0">
@@ -131,7 +137,7 @@ export default async function AdminEventsPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
-                      {!isChild && (
+                      {depth < MAX_DEPTH && (
                         <Link
                           href={`/admin/events/new?parent=${e.id}`}
                           title="Add a sub-event"

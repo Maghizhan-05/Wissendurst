@@ -18,16 +18,13 @@ export function EventForm({
   event,
   parents = [],
   defaultParentId = "",
-  hasChildren = false,
 }: {
   action: Action;
   event?: EventRow;
-  /** Top-level events this one may be nested under. */
-  parents?: { id: string; title: string }[];
+  /** Events this one may be nested under (depth 0 = event, 1 = sub-event). */
+  parents?: { id: string; title: string; depth: number }[];
   /** Preselected parent (e.g. when adding a sub-event from a parent row). */
   defaultParentId?: string;
-  /** True when this event already has sub-events — it can't become one. */
-  hasChildren?: boolean;
 }) {
   const [state, formAction, pending] = useActionState<AdminActionState, FormData>(
     action,
@@ -84,37 +81,68 @@ export function EventForm({
         </Field>
       </div>
 
-      {hasChildren ? (
-        <Field
-          label="Broader event"
-          htmlFor="parent_event_id"
-          hint="This is a broader event with its own sub-events, so it stays top-level."
+      <Field
+        label="Belongs to (broader event)"
+        htmlFor="parent_event_id"
+        hint="Leave as “None” for a top-level event. Pick a broader event to nest this under it — up to three levels (event → sub-event → sub-sub-event)."
+      >
+        <Select
+          id="parent_event_id"
+          name="parent_event_id"
+          defaultValue={event?.parent_event_id ?? defaultParentId ?? ""}
         >
-          <input type="hidden" name="parent_event_id" value="" />
-          <Select id="parent_event_id" defaultValue="" disabled>
-            <option value="">Top-level event (has sub-events)</option>
-          </Select>
-        </Field>
-      ) : (
-        <Field
-          label="Belongs to (broader event)"
-          htmlFor="parent_event_id"
-          hint="Leave as “None” for a standalone/top-level event. Pick a broader event to make this a sub-event of it."
-        >
-          <Select
-            id="parent_event_id"
-            name="parent_event_id"
-            defaultValue={event?.parent_event_id ?? defaultParentId ?? ""}
-          >
-            <option value="">None — top-level event</option>
-            {parents.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.title}
-              </option>
-            ))}
-          </Select>
-        </Field>
-      )}
+          <option value="">None — top-level event</option>
+          {parents.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.depth > 0 ? `${" ".repeat(p.depth * 2)}↳ ` : ""}
+              {p.title}
+            </option>
+          ))}
+        </Select>
+      </Field>
+
+      <Field
+        label="Payment UPI ID"
+        htmlFor="upi_id"
+        hint="Shown as the payment QR for this event. Leave blank to inherit the broader event's UPI (and finally the site default)."
+      >
+        <Input
+          id="upi_id"
+          name="upi_id"
+          defaultValue={event?.upi_id ?? ""}
+          placeholder="name@bank"
+          maxLength={120}
+        />
+      </Field>
+
+      <div className="rounded-xl border border-border bg-surface-2/40 p-4">
+        <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+          <input
+            type="checkbox"
+            name="discount_enabled"
+            defaultChecked={event?.discount_enabled ?? false}
+            className="size-4 accent-[var(--brand)]"
+          />
+          Sibling discount
+        </label>
+        <p className="mt-1 text-xs text-muted">
+          Set this on a <strong>broader (top-level) event</strong>. Once a
+          participant has a <strong>verified payment</strong> for one sub-event
+          under it, their next registration for another sub-event under the same
+          broader event gets this amount off.
+        </p>
+        <div className="mt-3 max-w-xs">
+          <Field label="Discount amount (₹)" htmlFor="discount_amount_rupees">
+            <Input
+              id="discount_amount_rupees"
+              name="discount_amount_rupees"
+              type="number"
+              min={0}
+              defaultValue={event ? event.discount_amount / 100 : 0}
+            />
+          </Field>
+        </div>
+      </div>
 
       <Field label="Short description" htmlFor="short_description" hint="One line, shown on cards" required>
         <Input

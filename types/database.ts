@@ -54,6 +54,9 @@ export interface EventRow {
   registration_open: boolean;
   featured: boolean;
   is_live: boolean; // false = "Coming soon" (locked), no registration
+  upi_id: string | null; // per-event UPI; resolved leaf-first up the tree
+  discount_enabled: boolean; // sibling discount on this broader event
+  discount_amount: number; // paise off a sibling sub-event once one is paid
   created_at: string;
   updated_at: string;
 }
