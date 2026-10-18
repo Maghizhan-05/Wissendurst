@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useEffect } from "react";
+import { Lock } from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { registerForEvent, type ActionResult } from "@/lib/actions/registration";
 import type { RegistrationRow } from "@/types/database";
@@ -12,6 +13,7 @@ export function RegisterCta({
   eventId,
   slug,
   isLoggedIn,
+  isLive,
   registrationOpen,
   isFull,
   fee,
@@ -20,6 +22,7 @@ export function RegisterCta({
   eventId: string;
   slug: string;
   isLoggedIn: boolean;
+  isLive: boolean;
   registrationOpen: boolean;
   isFull: boolean;
   fee: number;
@@ -56,6 +59,15 @@ export function RegisterCta({
         <ButtonLink href="/events" size="lg" variant="outline">
           Browse more
         </ButtonLink>
+      </div>
+    );
+  }
+
+  if (!isLive) {
+    return (
+      <div className="inline-flex items-center gap-2.5 rounded-full border border-border bg-surface px-5 py-3.5 text-sm font-medium text-muted">
+        <Lock className="size-4 text-brand" />
+        Coming soon — registration opens soon
       </div>
     );
   }

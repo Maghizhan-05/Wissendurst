@@ -118,7 +118,10 @@ export default async function EventPage({
               <Badge tone="brand">
                 {EVENT_CATEGORY_LABELS[event.category]}
               </Badge>
-              {!event.registration_open && <Badge tone="alert">Closed</Badge>}
+              {!event.is_live && <Badge tone="warning">Coming soon</Badge>}
+              {event.is_live && !event.registration_open && (
+                <Badge tone="alert">Closed</Badge>
+              )}
               {spotsLeft != null && spotsLeft <= 5 && spotsLeft > 0 && (
                 <Badge tone="warning">{spotsLeft} spots left</Badge>
               )}
@@ -132,6 +135,7 @@ export default async function EventPage({
                 eventId={event.id}
                 slug={event.slug}
                 isLoggedIn={!!user}
+                isLive={event.is_live}
                 registrationOpen={event.registration_open}
                 isFull={isFull}
                 fee={event.registration_fee}

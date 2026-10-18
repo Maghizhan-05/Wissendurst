@@ -11,6 +11,7 @@ export type ActionResult = { ok: false; error: string } | { ok: true };
 const RPC_ERRORS: Record<string, string> = {
   AUTH_REQUIRED: "Please sign in to register.",
   EVENT_NOT_FOUND: "That event no longer exists.",
+  NOT_LIVE: "Registration for this event hasn't opened yet — coming soon.",
   REGISTRATION_CLOSED: "Registration for this event is closed.",
   ALREADY_REGISTERED: "You're already registered for this event.",
   EVENT_FULL: "This event has reached capacity.",

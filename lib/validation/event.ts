@@ -39,6 +39,7 @@ export const eventSchema = z.object({
   thumbnail_image: z.string().trim().url().or(z.literal("")).optional().default(""),
   registration_open: z.coerce.boolean().optional().default(true),
   featured: z.coerce.boolean().optional().default(false),
+  is_live: z.coerce.boolean().optional().default(false),
 });
 
 export type EventInput = z.infer<typeof eventSchema>;

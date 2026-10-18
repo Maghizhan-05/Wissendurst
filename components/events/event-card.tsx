@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarDays, MapPin, ArrowUpRight } from "lucide-react";
+import { CalendarDays, MapPin, ArrowUpRight, Lock } from "lucide-react";
 import { EventThumb } from "./category-visual";
 import { Badge } from "@/components/ui/badge";
 import { EVENT_CATEGORY_LABELS } from "@/lib/constants";
@@ -35,10 +35,19 @@ export function EventCard({
           <Badge tone="brand">{EVENT_CATEGORY_LABELS[event.category]}</Badge>
           {registered && <Badge tone="success">Registered</Badge>}
         </div>
-        {!event.registration_open && (
-          <div className="absolute right-3 top-3">
-            <Badge tone="alert">Closed</Badge>
+        {!event.is_live ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/60 text-center backdrop-blur-[1px]">
+            <span className="flex size-11 items-center justify-center rounded-full border border-border bg-surface/85 text-brand">
+              <Lock className="size-5" />
+            </span>
+            <span className="text-sm font-semibold text-foreground">Coming soon</span>
           </div>
+        ) : (
+          !event.registration_open && (
+            <div className="absolute right-3 top-3">
+              <Badge tone="alert">Closed</Badge>
+            </div>
+          )
         )}
       </div>
 
@@ -65,10 +74,16 @@ export function EventCard({
           <span className="font-mono text-sm font-semibold text-foreground">
             {event.registration_fee === 0 ? "Free" : formatINR(event.registration_fee)}
           </span>
-          <span className="inline-flex items-center gap-1 text-sm font-medium text-brand">
-            View
-            <ArrowUpRight className="size-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-          </span>
+          {event.is_live ? (
+            <span className="inline-flex items-center gap-1 text-sm font-medium text-brand">
+              View
+              <ArrowUpRight className="size-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 text-sm font-medium text-muted">
+              <Lock className="size-3.5" /> Coming soon
+            </span>
+          )}
         </div>
       </div>
     </Link>

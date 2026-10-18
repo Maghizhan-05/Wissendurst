@@ -142,6 +142,16 @@ export function EventForm({
         <label className="flex items-center gap-2 text-sm text-foreground">
           <input
             type="checkbox"
+            name="is_live"
+            defaultChecked={event?.is_live ?? false}
+            className="size-4 accent-[var(--brand)]"
+          />
+          Live
+          <span className="text-xs text-muted">(off = &ldquo;Coming soon&rdquo;)</span>
+        </label>
+        <label className="flex items-center gap-2 text-sm text-foreground">
+          <input
+            type="checkbox"
             name="registration_open"
             defaultChecked={event ? event.registration_open : true}
             className="size-4 accent-[var(--brand)]"

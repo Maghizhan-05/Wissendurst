@@ -52,6 +52,7 @@ export interface EventRow {
   max_participants: number | null; // null = unlimited
   registration_open: boolean;
   featured: boolean;
+  is_live: boolean; // false = "Coming soon" (locked), no registration
   created_at: string;
   updated_at: string;
 }

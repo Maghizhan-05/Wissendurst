@@ -51,6 +51,7 @@ function rowFromInput(input: EventInput) {
     thumbnail_image: input.thumbnail_image || null,
     registration_open: !!input.registration_open,
     featured: !!input.featured,
+    is_live: !!input.is_live,
   };
 }
 
@@ -73,6 +74,7 @@ function parseEventForm(formData: FormData) {
     thumbnail_image: formData.get("thumbnail_image"),
     registration_open: formData.get("registration_open") === "on",
     featured: formData.get("featured") === "on",
+    is_live: formData.get("is_live") === "on",
   });
 }
 
@@ -143,7 +145,7 @@ export async function toggleEventFlag(formData: FormData): Promise<void> {
   const id = String(formData.get("id") ?? "");
   const field = String(formData.get("field") ?? "");
   const value = formData.get("value") === "true";
-  if (!id || !["featured", "registration_open"].includes(field)) return;
+  if (!id || !["featured", "registration_open", "is_live"].includes(field)) return;
 
   const supabase = await createClient();
   await supabase.from("events").update({ [field]: !value }).eq("id", id);
