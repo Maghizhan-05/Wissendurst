@@ -18,10 +18,12 @@ type SortKey = "date" | "fee-asc" | "fee-desc" | "title";
 export function EventsExplorer({
   events,
   registeredIds,
+  subEventCounts = {},
   initialCategory,
 }: {
   events: EventRow[];
   registeredIds: string[];
+  subEventCounts?: Record<string, number>;
   initialCategory?: string;
 }) {
   const [query, setQuery] = useState("");
@@ -128,6 +130,7 @@ export function EventsExplorer({
               key={event.id}
               event={event}
               registered={registered.has(event.id)}
+              subEventCount={subEventCounts[event.id] ?? 0}
             />
           ))}
         </div>

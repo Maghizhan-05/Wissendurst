@@ -1,6 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Plus, Pencil, Star, Trash2, Sheet } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Star,
+  Trash2,
+  Sheet,
+  Zap,
+  ZapOff,
+  CornerDownRight,
+  Layers,
+} from "lucide-react";
 import { ButtonLink } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/misc";
@@ -9,12 +19,33 @@ import { deleteEvent, toggleEventFlag } from "@/lib/actions/admin";
 import { requireScope } from "@/lib/auth";
 import { EVENT_CATEGORY_LABELS } from "@/lib/constants";
 import { formatEventDate, formatINR } from "@/lib/utils";
+import type { EventRow } from "@/types/database";
 
 export const metadata: Metadata = { title: "Admin · Events" };
 
 export default async function AdminEventsPage() {
   await requireScope("events");
   const events = await getAllEventsAdmin();
+
+  // Nest sub-events under their parent: each parent row is followed by its
+  // sub-events (indented); standalone events render on their own.
+  const childrenByParent = new Map<string, EventRow[]>();
+  for (const e of events) {
+    if (e.parent_event_id) {
+      const arr = childrenByParent.get(e.parent_event_id) ?? [];
+      arr.push(e);
+      childrenByParent.set(e.parent_event_id, arr);
+    }
+  }
+  const rows: { event: EventRow; isChild: boolean; childCount: number }[] = [];
+  for (const e of events) {
+    if (e.parent_event_id) continue; // children are emitted under their parent
+    const kids = (childrenByParent.get(e.id) ?? []).sort((a, b) =>
+      a.title.localeCompare(b.title),
+    );
+    rows.push({ event: e, isChild: false, childCount: kids.length });
+    for (const k of kids) rows.push({ event: k, isChild: true, childCount: 0 });
+  }
 
   return (
     <div className="space-y-6">
@@ -54,13 +85,29 @@ export default async function AdminEventsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {events.map((e) => (
+              {rows.map(({ event: e, isChild, childCount }) => (
                 <tr key={e.id} className="bg-surface hover:bg-surface-2/40">
                   <td className="px-4 py-3">
-                    <Link href={`/events/${e.slug}`} className="font-medium text-foreground hover:text-brand">
-                      {e.title}
-                    </Link>
-                    <p className="text-xs text-muted">/{e.slug}</p>
+                    <div className={isChild ? "flex items-start gap-2 pl-5" : ""}>
+                      {isChild && (
+                        <CornerDownRight className="mt-0.5 size-4 shrink-0 text-muted" />
+                      )}
+                      <div className="min-w-0">
+                        <Link
+                          href={`/events/${e.slug}`}
+                          className="font-medium text-foreground hover:text-brand"
+                        >
+                          {e.title}
+                        </Link>
+                        <p className="text-xs text-muted">/{e.slug}</p>
+                        {childCount > 0 && (
+                          <p className="mt-0.5 inline-flex items-center gap-1 text-xs text-brand">
+                            <Layers className="size-3" /> {childCount} sub-event
+                            {childCount === 1 ? "" : "s"}
+                          </p>
+                        )}
+                      </div>
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-muted">
                     {EVENT_CATEGORY_LABELS[e.category]}
@@ -73,6 +120,9 @@ export default async function AdminEventsPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1.5">
+                      <Badge tone={e.is_live ? "success" : "warning"}>
+                        {e.is_live ? "Live" : "Coming soon"}
+                      </Badge>
                       <Badge tone={e.registration_open ? "success" : "neutral"}>
                         {e.registration_open ? "Open" : "Closed"}
                       </Badge>
@@ -81,6 +131,31 @@ export default async function AdminEventsPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
+                      {!isChild && (
+                        <Link
+                          href={`/admin/events/new?parent=${e.id}`}
+                          title="Add a sub-event"
+                          className="rounded-md p-2 text-muted hover:bg-surface-2 hover:text-brand"
+                        >
+                          <Plus className="size-4" />
+                        </Link>
+                      )}
+                      <form action={toggleEventFlag}>
+                        <input type="hidden" name="id" value={e.id} />
+                        <input type="hidden" name="field" value="is_live" />
+                        <input type="hidden" name="value" value={String(e.is_live)} />
+                        <button
+                          type="submit"
+                          title={e.is_live ? "Set to Coming soon" : "Make live"}
+                          className="rounded-md p-2 text-muted hover:bg-surface-2 hover:text-success"
+                        >
+                          {e.is_live ? (
+                            <Zap className="size-4 fill-success/20 text-success" />
+                          ) : (
+                            <ZapOff className="size-4" />
+                          )}
+                        </button>
+                      </form>
                       <form action={toggleEventFlag}>
                         <input type="hidden" name="id" value={e.id} />
                         <input type="hidden" name="field" value="featured" />

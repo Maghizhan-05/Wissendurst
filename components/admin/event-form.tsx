@@ -16,9 +16,18 @@ type Action = (
 export function EventForm({
   action,
   event,
+  parents = [],
+  defaultParentId = "",
+  hasChildren = false,
 }: {
   action: Action;
   event?: EventRow;
+  /** Top-level events this one may be nested under. */
+  parents?: { id: string; title: string }[];
+  /** Preselected parent (e.g. when adding a sub-event from a parent row). */
+  defaultParentId?: string;
+  /** True when this event already has sub-events — it can't become one. */
+  hasChildren?: boolean;
 }) {
   const [state, formAction, pending] = useActionState<AdminActionState, FormData>(
     action,
@@ -74,6 +83,38 @@ export function EventForm({
           />
         </Field>
       </div>
+
+      {hasChildren ? (
+        <Field
+          label="Broader event"
+          htmlFor="parent_event_id"
+          hint="This is a broader event with its own sub-events, so it stays top-level."
+        >
+          <input type="hidden" name="parent_event_id" value="" />
+          <Select id="parent_event_id" defaultValue="" disabled>
+            <option value="">Top-level event (has sub-events)</option>
+          </Select>
+        </Field>
+      ) : (
+        <Field
+          label="Belongs to (broader event)"
+          htmlFor="parent_event_id"
+          hint="Leave as “None” for a standalone/top-level event. Pick a broader event to make this a sub-event of it."
+        >
+          <Select
+            id="parent_event_id"
+            name="parent_event_id"
+            defaultValue={event?.parent_event_id ?? defaultParentId ?? ""}
+          >
+            <option value="">None — top-level event</option>
+            {parents.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.title}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      )}
 
       <Field label="Short description" htmlFor="short_description" hint="One line, shown on cards" required>
         <Input

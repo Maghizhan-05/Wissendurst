@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarDays, MapPin, ArrowUpRight, Lock } from "lucide-react";
+import { CalendarDays, MapPin, ArrowUpRight, Lock, Layers } from "lucide-react";
 import { EventThumb } from "./category-visual";
 import { Badge } from "@/components/ui/badge";
 import { EVENT_CATEGORY_LABELS } from "@/lib/constants";
@@ -10,11 +10,15 @@ export function EventCard({
   event,
   className,
   registered,
+  subEventCount = 0,
 }: {
   event: EventRow;
   className?: string;
   registered?: boolean;
+  /** >0 means this is a broader event that contains that many sub-events. */
+  subEventCount?: number;
 }) {
+  const isContainer = subEventCount > 0;
   return (
     <Link
       href={`/events/${event.slug}`}
@@ -31,8 +35,13 @@ export function EventCard({
             category={event.category}
           />
         </div>
-        <div className="absolute left-3 top-3 flex gap-2">
+        <div className="absolute left-3 top-3 flex flex-wrap gap-2">
           <Badge tone="brand">{EVENT_CATEGORY_LABELS[event.category]}</Badge>
+          {isContainer && (
+            <Badge tone="neutral">
+              <Layers className="size-3" /> {subEventCount} events
+            </Badge>
+          )}
           {registered && <Badge tone="success">Registered</Badge>}
         </div>
         {!event.is_live ? (
@@ -43,6 +52,7 @@ export function EventCard({
             <span className="text-sm font-semibold text-foreground">Coming soon</span>
           </div>
         ) : (
+          !isContainer &&
           !event.registration_open && (
             <div className="absolute right-3 top-3">
               <Badge tone="alert">Closed</Badge>
@@ -71,12 +81,19 @@ export function EventCard({
         </div>
 
         <div className="mt-5 flex items-center justify-between border-t border-border pt-4">
-          <span className="font-mono text-sm font-semibold text-foreground">
-            {event.registration_fee === 0 ? "Free" : formatINR(event.registration_fee)}
-          </span>
+          {isContainer ? (
+            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-muted">
+              <Layers className="size-3.5" /> {subEventCount} sub-event
+              {subEventCount === 1 ? "" : "s"}
+            </span>
+          ) : (
+            <span className="font-mono text-sm font-semibold text-foreground">
+              {event.registration_fee === 0 ? "Free" : formatINR(event.registration_fee)}
+            </span>
+          )}
           {event.is_live ? (
             <span className="inline-flex items-center gap-1 text-sm font-medium text-brand">
-              View
+              {isContainer ? "View events" : "View"}
               <ArrowUpRight className="size-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
             </span>
           ) : (

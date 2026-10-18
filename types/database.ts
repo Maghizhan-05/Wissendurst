@@ -35,6 +35,7 @@ export interface ProfileRow {
 
 export interface EventRow {
   id: string;
+  parent_event_id: string | null; // null = top-level event; set = sub-event
   slug: string;
   title: string;
   short_description: string;

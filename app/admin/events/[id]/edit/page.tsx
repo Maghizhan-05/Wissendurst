@@ -4,7 +4,8 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Sheet } from "lucide-react";
 import { EventForm } from "@/components/admin/event-form";
 import { updateEvent } from "@/lib/actions/admin";
-import { getEventByIdAdmin } from "@/lib/data/admin";
+import { getEventByIdAdmin, getTopLevelEventOptions } from "@/lib/data/admin";
+import { getSubEvents } from "@/lib/data/events";
 import { requireScope } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Admin · Edit event" };
@@ -16,6 +17,11 @@ export default async function EditEventPage({
   const { id } = await params;
   const event = await getEventByIdAdmin(id);
   if (!event) notFound();
+
+  const [parents, children] = await Promise.all([
+    getTopLevelEventOptions(id),
+    getSubEvents(id),
+  ]);
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -40,7 +46,12 @@ export default async function EditEventPage({
         </a>
       </div>
       <div className="mt-8">
-        <EventForm action={updateEvent} event={event} />
+        <EventForm
+          action={updateEvent}
+          event={event}
+          parents={parents}
+          hasChildren={children.length > 0}
+        />
       </div>
     </div>
   );

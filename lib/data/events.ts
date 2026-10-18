@@ -12,6 +12,54 @@ export async function getEvents(): Promise<EventRow[]> {
   return (data as EventRow[]) ?? [];
 }
 
+/** Top-level events only (containers + standalones) — sub-events are hidden. */
+export async function getTopLevelEvents(): Promise<EventRow[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("events")
+    .select("*")
+    .is("parent_event_id", null)
+    .order("featured", { ascending: false })
+    .order("event_date", { ascending: true, nullsFirst: false });
+  return (data as EventRow[]) ?? [];
+}
+
+/** Sub-events of a given parent, in display order. */
+export async function getSubEvents(parentId: string): Promise<EventRow[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("events")
+    .select("*")
+    .eq("parent_event_id", parentId)
+    .order("event_date", { ascending: true, nullsFirst: false })
+    .order("title", { ascending: true });
+  return (data as EventRow[]) ?? [];
+}
+
+/** How many sub-events each container has, keyed by parent id. */
+export async function getSubEventCounts(): Promise<Record<string, number>> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("events")
+    .select("parent_event_id")
+    .not("parent_event_id", "is", null);
+  const counts: Record<string, number> = {};
+  for (const r of (data ?? []) as { parent_event_id: string }[]) {
+    counts[r.parent_event_id] = (counts[r.parent_event_id] ?? 0) + 1;
+  }
+  return counts;
+}
+
+export async function getEventById(id: string): Promise<EventRow | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("events")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  return (data as EventRow) ?? null;
+}
+
 export async function getFeaturedEvents(limit = 4): Promise<EventRow[]> {
   const supabase = await createClient();
   const { data } = await supabase

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Container } from "@/components/ui/container";
 import { EventsExplorer } from "@/components/events/events-explorer";
-import { getEvents } from "@/lib/data/events";
+import { getTopLevelEvents, getSubEventCounts } from "@/lib/data/events";
 import { getMyRegisteredEventIds } from "@/lib/data/registrations";
 
 export const metadata: Metadata = {
@@ -17,8 +17,9 @@ export default async function EventsPage({
   const category =
     typeof params.category === "string" ? params.category : undefined;
 
-  const [events, registeredIds] = await Promise.all([
-    getEvents(),
+  const [events, subEventCounts, registeredIds] = await Promise.all([
+    getTopLevelEvents(),
+    getSubEventCounts(),
     getMyRegisteredEventIds(),
   ]);
 
@@ -41,6 +42,7 @@ export default async function EventsPage({
         <div className="mt-12">
           <EventsExplorer
             events={events}
+            subEventCounts={subEventCounts}
             registeredIds={[...registeredIds]}
             initialCategory={category}
           />

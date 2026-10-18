@@ -3,12 +3,18 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { EventForm } from "@/components/admin/event-form";
 import { createEvent } from "@/lib/actions/admin";
+import { getTopLevelEventOptions } from "@/lib/data/admin";
 import { requireScope } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Admin · New event" };
 
-export default async function NewEventPage() {
+export default async function NewEventPage({
+  searchParams,
+}: PageProps<"/admin/events/new">) {
   await requireScope("events");
+  const sp = await searchParams;
+  const defaultParentId = typeof sp.parent === "string" ? sp.parent : "";
+  const parents = await getTopLevelEventOptions();
   return (
     <div className="mx-auto max-w-3xl">
       <Link
@@ -24,7 +30,11 @@ export default async function NewEventPage() {
         The public event page is generated automatically from these fields.
       </p>
       <div className="mt-8">
-        <EventForm action={createEvent} />
+        <EventForm
+          action={createEvent}
+          parents={parents}
+          defaultParentId={defaultParentId}
+        />
       </div>
     </div>
   );

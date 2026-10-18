@@ -94,6 +94,21 @@ export async function getAllEventsAdmin(): Promise<EventRow[]> {
   return (data as EventRow[]) ?? [];
 }
 
+/** Top-level events usable as a "broader event" parent, minus `excludeId`. */
+export async function getTopLevelEventOptions(
+  excludeId?: string,
+): Promise<{ id: string; title: string }[]> {
+  const supabase = await createClient();
+  let query = supabase
+    .from("events")
+    .select("id, title")
+    .is("parent_event_id", null)
+    .order("title", { ascending: true });
+  if (excludeId) query = query.neq("id", excludeId);
+  const { data } = await query;
+  return (data as { id: string; title: string }[]) ?? [];
+}
+
 export async function getEventByIdAdmin(id: string): Promise<EventRow | null> {
   const supabase = await createClient();
   const { data } = await supabase

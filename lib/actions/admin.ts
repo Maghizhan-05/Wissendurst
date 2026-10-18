@@ -52,7 +52,41 @@ function rowFromInput(input: EventInput) {
     registration_open: !!input.registration_open,
     featured: !!input.featured,
     is_live: !!input.is_live,
+    parent_event_id: input.parent_event_id ? input.parent_event_id : null,
   };
+}
+
+/**
+ * Keeps the sub-event tree one level deep and acyclic. Returns an error
+ * message when the chosen parent is invalid, or null when it's fine.
+ */
+async function validateParent(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  parentId: string,
+  selfId?: string,
+): Promise<string | null> {
+  if (!parentId) return null; // top-level event — nothing to check
+  if (selfId && parentId === selfId)
+    return "An event can't be its own broader event.";
+
+  const { data: parent } = await supabase
+    .from("events")
+    .select("id, parent_event_id")
+    .eq("id", parentId)
+    .maybeSingle();
+  if (!parent) return "That broader event no longer exists.";
+  if ((parent as { parent_event_id: string | null }).parent_event_id !== null)
+    return "Pick a top-level event as the broader event (sub-events go one level deep).";
+
+  if (selfId) {
+    const { count } = await supabase
+      .from("events")
+      .select("id", { count: "exact", head: true })
+      .eq("parent_event_id", selfId);
+    if ((count ?? 0) > 0)
+      return "This event already has sub-events, so it can't become a sub-event itself.";
+  }
+  return null;
 }
 
 function parseEventForm(formData: FormData) {
@@ -75,6 +109,7 @@ function parseEventForm(formData: FormData) {
     registration_open: formData.get("registration_open") === "on",
     featured: formData.get("featured") === "on",
     is_live: formData.get("is_live") === "on",
+    parent_event_id: formData.get("parent_event_id") || "",
   });
 }
 
@@ -90,6 +125,9 @@ export async function createEvent(
   }
 
   const supabase = await createClient();
+  const parentError = await validateParent(supabase, parsed.data.parent_event_id);
+  if (parentError) return { ok: false, error: parentError };
+
   const { error } = await supabase.from("events").insert(rowFromInput(parsed.data));
   if (error) {
     if (error.code === "23505")
@@ -116,6 +154,13 @@ export async function updateEvent(
   }
 
   const supabase = await createClient();
+  const parentError = await validateParent(
+    supabase,
+    parsed.data.parent_event_id,
+    id,
+  );
+  if (parentError) return { ok: false, error: parentError };
+
   const { error } = await supabase
     .from("events")
     .update(rowFromInput(parsed.data))

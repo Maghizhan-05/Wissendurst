@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
 import {
   CalendarDays,
   Clock,
@@ -8,17 +9,27 @@ import {
   Users,
   GraduationCap,
   ListChecks,
+  Layers,
+  ArrowLeft,
 } from "lucide-react";
 import { Container } from "@/components/ui/container";
 import { Badge } from "@/components/ui/badge";
 import { EventThumb } from "@/components/events/category-visual";
+import { EventCard } from "@/components/events/event-card";
 import { RegisterCta } from "@/components/events/register-cta";
-import { getEventBySlug, getEventRegistrationCounts } from "@/lib/data/events";
-import { getMyRegistrationForEvent } from "@/lib/data/registrations";
+import {
+  getEventBySlug,
+  getEventById,
+  getSubEvents,
+  getEventRegistrationCounts,
+} from "@/lib/data/events";
+import {
+  getMyRegistrationForEvent,
+  getMyRegisteredEventIds,
+} from "@/lib/data/registrations";
 import { getUser } from "@/lib/auth";
 import { EVENT_CATEGORY_LABELS } from "@/lib/constants";
 import { formatEventDate, formatINR, formatTime } from "@/lib/utils";
-// with the other imports:
 import { EventBackground } from "@/components/three/event-background";
 
 export async function generateMetadata({
@@ -45,10 +56,70 @@ export default async function EventPage({
   const event = await getEventBySlug(slug);
   if (!event) notFound();
 
-  const [user, existing, counts] = await Promise.all([
+  const subEvents = await getSubEvents(event.id);
+
+  // A broader event with exactly one sub-event behaves as that sub-event.
+  if (subEvents.length === 1) {
+    redirect(`/events/${subEvents[0].slug}`);
+  }
+
+  // A broader event with several sub-events renders as a hub.
+  if (subEvents.length > 1) {
+    const registeredIds = await getMyRegisteredEventIds();
+    return (
+      <article className="py-10 md:py-14">
+        <EventBackground category={event.category} slug={event.slug} />
+        <Container>
+          <div className="max-w-3xl">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge tone="brand">
+                {EVENT_CATEGORY_LABELS[event.category]}
+              </Badge>
+              <Badge tone="neutral">
+                <Layers className="size-3" /> {subEvents.length} events
+              </Badge>
+              {!event.is_live && <Badge tone="warning">Coming soon</Badge>}
+            </div>
+            <h1 className="mt-4 font-display text-4xl font-semibold leading-tight text-foreground sm:text-5xl">
+              {event.title}
+            </h1>
+            <p className="mt-4 text-lg text-muted">{event.short_description}</p>
+            {event.description && (
+              <div className="mt-6 space-y-4 whitespace-pre-line text-base leading-relaxed text-muted">
+                {event.description}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-10 flex items-center gap-3">
+            <h2 className="font-display text-2xl font-semibold text-foreground">
+              Choose an event
+            </h2>
+            <span className="text-sm text-muted">
+              {subEvents.length} to pick from
+            </span>
+          </div>
+
+          <div className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {subEvents.map((sub) => (
+              <EventCard
+                key={sub.id}
+                event={sub}
+                registered={registeredIds.has(sub.id)}
+              />
+            ))}
+          </div>
+        </Container>
+      </article>
+    );
+  }
+
+  // Leaf: a standalone event or a single sub-event — the register page.
+  const [user, existing, counts, parent] = await Promise.all([
     getUser(),
     getMyRegistrationForEvent(event.id),
     getEventRegistrationCounts(),
+    event.parent_event_id ? getEventById(event.parent_event_id) : null,
   ]);
 
   const taken = counts[event.id] ?? 0;
@@ -101,6 +172,14 @@ export default async function EventPage({
     <article className="py-10 md:py-14">
       <EventBackground category={event.category} slug={event.slug} />
       <Container>
+        {parent && (
+          <Link
+            href={`/events/${parent.slug}`}
+            className="mb-6 inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-foreground"
+          >
+            <ArrowLeft className="size-4" /> Part of {parent.title}
+          </Link>
+        )}
         {/* Hero */}
         <div className="grid gap-8 lg:grid-cols-2 lg:gap-12">
           <div className="relative order-2 aspect-[16/11] overflow-hidden rounded-3xl border border-border lg:order-1">

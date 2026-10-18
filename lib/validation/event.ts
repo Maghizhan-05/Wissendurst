@@ -40,6 +40,8 @@ export const eventSchema = z.object({
   registration_open: z.coerce.boolean().optional().default(true),
   featured: z.coerce.boolean().optional().default(false),
   is_live: z.coerce.boolean().optional().default(false),
+  // Empty string = top-level event; a uuid = this is a sub-event of that event.
+  parent_event_id: z.string().uuid().or(z.literal("")).optional().default(""),
 });
 
 export type EventInput = z.infer<typeof eventSchema>;
