@@ -10,6 +10,7 @@ import {
   BadgeIndianRupee,
   LayoutTemplate,
   UserCheck,
+  TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AdminScope } from "@/lib/constants";
@@ -40,6 +41,7 @@ export function AdminSidebar({
     { href: "/admin/events", label: "Events", icon: CalendarCog, scope: "events" },
     { href: "/admin/registrations", label: "Registrations", icon: ClipboardList, scope: "events" },
     { href: "/admin/payments", label: "Payments", icon: BadgeIndianRupee, scope: "payments" },
+    { href: "/admin/collections", label: "Collections", icon: TrendingUp, scope: "payments" },
     { href: "/admin/users", label: "Users", icon: Users, scope: "signups" },
     { href: "/admin/content", label: "Landing page", icon: LayoutTemplate, scope: "content" },
   ];
