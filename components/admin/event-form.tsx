@@ -69,7 +69,7 @@ export function EventForm({
             ))}
           </Select>
         </Field>
-        <Field label="Registration fee (₹)" htmlFor="fee" hint="0 for a free event" required>
+        <Field label="Registration fee (₹)" htmlFor="fee" hint="Per-person fee (0 = free). For team events this is what a lone participant pays." required>
           <Input
             id="fee"
             name="registration_fee_rupees"
@@ -251,15 +251,16 @@ export function EventForm({
         <p className="mt-1 text-xs text-muted">
           When on, participants register as a team. The team head enters
           teammates by their <strong>participant ID</strong> (W27/E/…), everyone
-          is grouped, and the head pays a single flat team fee (the registration
-          fee above, not multiplied by team size). A person may also join on
-          their own (team of one); nobody can be on more than one team per event.
+          is grouped, and the head pays the <strong>flat team fee</strong> below.
+          A person may also join on their own (team of one) — they pay the
+          per-person registration fee; nobody can be on more than one team per
+          event.
         </p>
-        <div className="mt-3 max-w-xs">
+        <div className="mt-3 grid max-w-md grid-cols-2 gap-4">
           <Field
             label="Max team size"
             htmlFor="team_max"
-            hint="Head included. Teams can be any size from 1 up to this."
+            hint="Head included. 1 up to this."
           >
             <Input
               id="team_max"
@@ -268,6 +269,19 @@ export function EventForm({
               min={1}
               max={100}
               defaultValue={event?.team_max ?? 4}
+            />
+          </Field>
+          <Field
+            label="Team flat fee (₹)"
+            htmlFor="team_fee_rupees"
+            hint="Charged once to a team of 2+. A lone participant pays the registration fee above."
+          >
+            <Input
+              id="team_fee_rupees"
+              name="team_fee_rupees"
+              type="number"
+              min={0}
+              defaultValue={event ? event.team_fee / 100 : 0}
             />
           </Field>
         </div>

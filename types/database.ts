@@ -60,6 +60,7 @@ export interface EventRow {
   team_enabled: boolean; // registration happens as a team
   team_min: number; // smallest team size (head included)
   team_max: number; // largest team size (head included)
+  team_fee: number; // paise — flat fee for a team of 2+ (lone = registration_fee)
   created_at: string;
   updated_at: string;
 }

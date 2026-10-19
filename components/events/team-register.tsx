@@ -25,13 +25,15 @@ export function TeamRegister({
   eventId,
   slug,
   fee,
+  teamFee,
   teamMin,
   teamMax,
   head,
 }: {
   eventId: string;
   slug: string;
-  fee: number;
+  fee: number; // lone-participant fee (team of one)
+  teamFee: number; // flat fee for a team of 2+
   teamMin: number;
   teamMax: number;
   head: Head;
@@ -53,7 +55,8 @@ export function TeamRegister({
   const teamSize = members.length + 1; // + head
   const atMax = teamSize >= teamMax;
   const canSubmit = teamSize >= teamMin && teamSize <= teamMax;
-  const total = fee; // single flat fee for the whole team
+  // A team of one pays the lone fee; a real team pays the flat team fee.
+  const total = teamSize <= 1 ? fee : teamFee;
 
   function addMember() {
     const value = pid.trim();
@@ -165,7 +168,11 @@ export function TeamRegister({
               {total === 0 ? "Free" : formatINR(total)}
             </p>
             <p className="text-xs text-muted">
-              {fee === 0 ? "Free event" : "Flat fee for the whole team"}
+              {total === 0
+                ? "Free"
+                : teamSize <= 1
+                  ? "Individual fee (team of one)"
+                  : "Flat fee for the whole team"}
             </p>
           </div>
           <Button type="submit" size="lg" loading={submitting} disabled={!canSubmit} withArrow>

@@ -30,6 +30,7 @@ export function RegisterCta({
   teamEnabled = false,
   teamMin = 2,
   teamMax = 4,
+  teamFee = 0,
   head = null,
 }: {
   eventId: string;
@@ -43,6 +44,7 @@ export function RegisterCta({
   teamEnabled?: boolean;
   teamMin?: number;
   teamMax?: number;
+  teamFee?: number;
   head?: TeamHead | null;
 }) {
   const [state, formAction, pending] = useActionState(
@@ -142,6 +144,7 @@ export function RegisterCta({
         eventId={eventId}
         slug={slug}
         fee={fee}
+        teamFee={teamFee}
         teamMin={teamMin}
         teamMax={teamMax}
         head={head}

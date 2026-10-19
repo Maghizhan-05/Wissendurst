@@ -59,6 +59,7 @@ function rowFromInput(input: EventInput) {
     team_enabled: !!input.team_enabled,
     team_min: 1, // solo allowed; the only limit is the max
     team_max: Math.max(1, input.team_max ?? 4),
+    team_fee: Math.round((input.team_fee_rupees ?? 0) * 100),
   };
 }
 
@@ -161,6 +162,7 @@ function parseEventForm(formData: FormData) {
     discount_amount_rupees: formData.get("discount_amount_rupees") || 0,
     team_enabled: formData.get("team_enabled") === "on",
     team_max: formData.get("team_max") || 4,
+    team_fee_rupees: formData.get("team_fee_rupees") || 0,
   });
 }
 

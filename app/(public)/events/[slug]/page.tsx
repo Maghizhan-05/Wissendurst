@@ -223,6 +223,7 @@ export default async function EventPage({
                 teamEnabled={event.team_enabled}
                 teamMin={event.team_min}
                 teamMax={event.team_max}
+                teamFee={event.team_fee}
                 head={
                   profile
                     ? {

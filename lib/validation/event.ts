@@ -57,6 +57,13 @@ export const eventSchema = z.object({
   team_enabled: z.coerce.boolean().optional().default(false),
   team_min: z.coerce.number().int().min(1).max(100).optional().default(1),
   team_max: z.coerce.number().int().min(1).max(100).optional().default(4),
+  team_fee_rupees: z.coerce
+    .number()
+    .int("Whole rupees only")
+    .min(0, "Fee can't be negative")
+    .max(1_000_000)
+    .optional()
+    .default(0),
 });
 
 export type EventInput = z.infer<typeof eventSchema>;
