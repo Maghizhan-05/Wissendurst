@@ -77,6 +77,90 @@ export async function getEventAncestors(event: EventRow): Promise<EventRow[]> {
 }
 
 /**
+ * The sibling discount (in paise) a user would get registering for this event
+ * right now — mirrors register_for_event: the nearest ancestor with the
+ * discount enabled under which the user already has a verified payment on
+ * another event. 0 when none applies. Used to preview the discount on the
+ * event page before the user registers.
+ */
+export async function getEventDiscount(
+  event: EventRow,
+  userId: string | null,
+): Promise<number> {
+  if (!userId || event.registration_fee <= 0) return 0;
+
+  const supabase = await createClient();
+  const { data: evRows } = await supabase
+    .from("events")
+    .select("id, parent_event_id, discount_enabled, discount_amount");
+  const rows =
+    (evRows as {
+      id: string;
+      parent_event_id: string | null;
+      discount_enabled: boolean;
+      discount_amount: number;
+    }[]) ?? [];
+
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const childrenOf = new Map<string, string[]>();
+  for (const r of rows) {
+    if (r.parent_event_id) {
+      const a = childrenOf.get(r.parent_event_id) ?? [];
+      a.push(r.id);
+      childrenOf.set(r.parent_event_id, a);
+    }
+  }
+
+  // Ancestors, nearest first.
+  const ancestors: string[] = [];
+  const seen = new Set<string>([event.id]);
+  let cur = event.parent_event_id;
+  while (cur && !seen.has(cur) && ancestors.length < 5) {
+    seen.add(cur);
+    ancestors.push(cur);
+    cur = byId.get(cur)?.parent_event_id ?? null;
+  }
+  if (ancestors.length === 0) return 0;
+
+  const { data: regRows } = await supabase
+    .from("registrations")
+    .select("event_id")
+    .eq("profile_id", userId)
+    .eq("payment_status", "verified");
+  const verified = new Set(
+    (regRows ?? []).map((r) => (r as { event_id: string }).event_id),
+  );
+  if (verified.size === 0) return 0;
+
+  const subtree = (rootId: string): Set<string> => {
+    const out = new Set<string>();
+    const stack = [rootId];
+    while (stack.length) {
+      const id = stack.pop() as string;
+      if (out.has(id)) continue;
+      out.add(id);
+      for (const c of childrenOf.get(id) ?? []) stack.push(c);
+    }
+    return out;
+  };
+
+  for (const ancId of ancestors) {
+    const anc = byId.get(ancId);
+    if (!anc?.discount_enabled || anc.discount_amount <= 0) continue;
+    const ids = subtree(ancId);
+    let eligible = false;
+    for (const eid of verified) {
+      if (eid !== event.id && ids.has(eid)) {
+        eligible = true;
+        break;
+      }
+    }
+    if (eligible) return Math.min(anc.discount_amount, event.registration_fee);
+  }
+  return 0;
+}
+
+/**
  * The UPI id to charge for an event: its own, else the nearest ancestor's,
  * else null (caller falls back to the site default).
  */

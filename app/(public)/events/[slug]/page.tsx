@@ -24,6 +24,7 @@ import {
   getSubEventCounts,
   getEventAncestors,
   getEventRegistrationCounts,
+  getEventDiscount,
 } from "@/lib/data/events";
 import {
   getMyRegistrationForEvent,
@@ -130,6 +131,11 @@ export default async function EventPage({
     getEventAncestors(event),
   ]);
 
+  // Preview the sibling discount a signed-in user would get (solo events only).
+  const discountPaise = event.team_enabled
+    ? 0
+    : await getEventDiscount(event, profile?.id ?? null);
+
   const taken = counts[event.id] ?? 0;
   const isFull =
     event.max_participants != null && taken >= event.max_participants;
@@ -219,6 +225,7 @@ export default async function EventPage({
                 registrationOpen={event.registration_open}
                 isFull={isFull}
                 fee={event.registration_fee}
+                discountPaise={discountPaise}
                 existing={existing}
                 teamEnabled={event.team_enabled}
                 teamMin={event.team_min}

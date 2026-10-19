@@ -8,6 +8,7 @@ import { Lock, Users } from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { registerForEvent, type ActionResult } from "@/lib/actions/registration";
 import { TeamRegister } from "@/components/events/team-register";
+import { formatINR } from "@/lib/utils";
 import type { RegistrationRow } from "@/types/database";
 
 type TeamHead = {
@@ -26,6 +27,7 @@ export function RegisterCta({
   registrationOpen,
   isFull,
   fee,
+  discountPaise = 0,
   existing,
   teamEnabled = false,
   teamMin = 2,
@@ -40,6 +42,7 @@ export function RegisterCta({
   registrationOpen: boolean;
   isFull: boolean;
   fee: number;
+  discountPaise?: number;
   existing: RegistrationRow | null;
   teamEnabled?: boolean;
   teamMin?: number;
@@ -152,12 +155,30 @@ export function RegisterCta({
     );
   }
 
+  const discounted = discountPaise > 0 && fee > 0;
+  const finalFee = Math.max(fee - discountPaise, 0);
+
   return (
-    <form action={formAction}>
+    <form action={formAction} className="flex flex-col gap-3">
       <input type="hidden" name="event_id" value={eventId} />
       <input type="hidden" name="slug" value={slug} />
-      <Button type="submit" size="lg" loading={pending} withArrow>
-        {fee === 0 ? "Register — Free" : "Register for this event"}
+      {discounted && (
+        <div className="inline-flex flex-wrap items-center gap-2.5 rounded-xl border border-success/30 bg-success/10 px-4 py-2.5 text-sm">
+          <span className="text-muted line-through">{formatINR(fee)}</span>
+          <span className="font-display text-lg font-semibold text-foreground">
+            {finalFee === 0 ? "Free" : formatINR(finalFee)}
+          </span>
+          <span className="rounded-full bg-success/15 px-2 py-0.5 text-xs font-medium text-success">
+            You save {formatINR(discountPaise)}
+          </span>
+        </div>
+      )}
+      <Button type="submit" size="lg" loading={pending} withArrow className="self-start">
+        {fee === 0
+          ? "Register — Free"
+          : discounted
+            ? `Register — pay ${formatINR(finalFee)}`
+            : "Register for this event"}
       </Button>
     </form>
   );
