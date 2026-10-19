@@ -20,10 +20,12 @@ export function RegistrationFlipCard({
   const [flipped, setFlipped] = useState(false);
   const { event } = registration;
 
+  const isTeamMember = !!registration.team_id && !registration.is_team_head;
   const needsPayment =
-    registration.payment_status === "unpaid" ||
-    registration.payment_status === "rejected" ||
-    registration.payment_status === "duplicate";
+    !isTeamMember &&
+    (registration.payment_status === "unpaid" ||
+      registration.payment_status === "rejected" ||
+      registration.payment_status === "duplicate");
 
   return (
     <div
@@ -93,6 +95,13 @@ export function RegistrationFlipCard({
                 {registration.amount === 0 ? "Free" : formatINR(registration.amount)}
               </span>
             </Row>
+            {registration.team_id && (
+              <Row label="Team">
+                <span className="text-foreground">
+                  {registration.is_team_head ? "Team head" : "Team member"}
+                </span>
+              </Row>
+            )}
             <Row label="Registered">
               <span className="text-foreground">
                 {formatEventDate(registration.registered_at.slice(0, 10))}

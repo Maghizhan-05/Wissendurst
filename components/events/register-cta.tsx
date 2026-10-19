@@ -4,10 +4,19 @@ import { useActionState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useEffect } from "react";
-import { Lock } from "lucide-react";
+import { Lock, Users } from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { registerForEvent, type ActionResult } from "@/lib/actions/registration";
+import { TeamRegister } from "@/components/events/team-register";
 import type { RegistrationRow } from "@/types/database";
+
+type TeamHead = {
+  id: string;
+  participant_id: string;
+  full_name: string;
+  email: string;
+  college: string | null;
+};
 
 export function RegisterCta({
   eventId,
@@ -18,6 +27,10 @@ export function RegisterCta({
   isFull,
   fee,
   existing,
+  teamEnabled = false,
+  teamMin = 2,
+  teamMax = 4,
+  head = null,
 }: {
   eventId: string;
   slug: string;
@@ -27,6 +40,10 @@ export function RegisterCta({
   isFull: boolean;
   fee: number;
   existing: RegistrationRow | null;
+  teamEnabled?: boolean;
+  teamMin?: number;
+  teamMax?: number;
+  head?: TeamHead | null;
 }) {
   const [state, formAction, pending] = useActionState(
     async (_prev: ActionResult | null, formData: FormData) =>
@@ -39,6 +56,21 @@ export function RegisterCta({
   }, [state]);
 
   if (existing) {
+    // A teammate (not the head) doesn't pay — the head covers the team.
+    if (existing.team_id && !existing.is_team_head) {
+      return (
+        <div className="flex flex-col gap-3">
+          <div className="inline-flex items-center gap-2.5 rounded-xl border border-border bg-surface px-4 py-3 text-sm text-foreground">
+            <Users className="size-4 text-brand" />
+            You&rsquo;re on a team for this event — your team head completes the
+            payment.
+          </div>
+          <ButtonLink href="/dashboard/registrations" size="lg" variant="outline">
+            View my events
+          </ButtonLink>
+        </div>
+      );
+    }
     const needsPayment =
       existing.payment_status === "unpaid" ||
       existing.payment_status === "rejected" ||
@@ -101,6 +133,19 @@ export function RegisterCta({
           </Link>
         </span>
       </div>
+    );
+  }
+
+  if (teamEnabled && head) {
+    return (
+      <TeamRegister
+        eventId={eventId}
+        slug={slug}
+        fee={fee}
+        teamMin={teamMin}
+        teamMax={teamMax}
+        head={head}
+      />
     );
   }
 

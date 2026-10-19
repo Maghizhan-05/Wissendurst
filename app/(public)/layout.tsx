@@ -11,7 +11,10 @@ export default async function PublicLayout({
     getLandingContent(),
   ]);
   const navUser = profile
-    ? { participantId: profile.participant_id, isAdmin: profile.role === "admin" }
+    ? {
+        participantId: profile.participant_id ?? "",
+        isAdmin: profile.role === "admin",
+      }
     : null;
 
   return (

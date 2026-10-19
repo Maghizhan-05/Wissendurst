@@ -126,10 +126,10 @@ export function EventForm({
           Sibling discount
         </label>
         <p className="mt-1 text-xs text-muted">
-          Set this on a <strong>broader (top-level) event</strong>. Once a
-          participant has a <strong>verified payment</strong> for one sub-event
-          under it, their next registration for another sub-event under the same
-          broader event gets this amount off.
+          Set this on a <strong>broader event (any level that has sub-events)</strong>.
+          Once a participant has a <strong>verified payment</strong> for one
+          sub-event under it, their next registration for another sub-event
+          under the same broader event gets this amount off.
         </p>
         <div className="mt-3 max-w-xs">
           <Field label="Discount amount (₹)" htmlFor="discount_amount_rupees">
@@ -236,6 +236,41 @@ export function EventForm({
           />
           Featured on landing page
         </label>
+      </div>
+
+      <div className="rounded-xl border border-border bg-surface-2/40 p-4">
+        <label className="flex items-center gap-2 text-sm font-medium text-foreground">
+          <input
+            type="checkbox"
+            name="team_enabled"
+            defaultChecked={event?.team_enabled ?? false}
+            className="size-4 accent-[var(--brand)]"
+          />
+          Team registration
+        </label>
+        <p className="mt-1 text-xs text-muted">
+          When on, participants register as a team. The team head enters
+          teammates by their <strong>participant ID</strong> (W27/E/…), everyone
+          is grouped, and the head pays a single flat team fee (the registration
+          fee above, not multiplied by team size). A person may also join on
+          their own (team of one); nobody can be on more than one team per event.
+        </p>
+        <div className="mt-3 max-w-xs">
+          <Field
+            label="Max team size"
+            htmlFor="team_max"
+            hint="Head included. Teams can be any size from 1 up to this."
+          >
+            <Input
+              id="team_max"
+              name="team_max"
+              type="number"
+              min={1}
+              max={100}
+              defaultValue={event?.team_max ?? 4}
+            />
+          </Field>
+        </div>
       </div>
 
       {state && !state.ok && (

@@ -29,7 +29,7 @@ import {
   getMyRegistrationForEvent,
   getMyRegisteredEventIds,
 } from "@/lib/data/registrations";
-import { getUser } from "@/lib/auth";
+import { getProfile } from "@/lib/auth";
 import { EVENT_CATEGORY_LABELS } from "@/lib/constants";
 import { formatEventDate, formatINR, formatTime } from "@/lib/utils";
 import { EventBackground } from "@/components/three/event-background";
@@ -123,8 +123,8 @@ export default async function EventPage({
   }
 
   // Leaf: a standalone event or a single sub-event — the register page.
-  const [user, existing, counts, ancestors] = await Promise.all([
-    getUser(),
+  const [profile, existing, counts, ancestors] = await Promise.all([
+    getProfile(),
     getMyRegistrationForEvent(event.id),
     getEventRegistrationCounts(),
     getEventAncestors(event),
@@ -214,12 +214,26 @@ export default async function EventPage({
               <RegisterCta
                 eventId={event.id}
                 slug={event.slug}
-                isLoggedIn={!!user}
+                isLoggedIn={!!profile}
                 isLive={event.is_live}
                 registrationOpen={event.registration_open}
                 isFull={isFull}
                 fee={event.registration_fee}
                 existing={existing}
+                teamEnabled={event.team_enabled}
+                teamMin={event.team_min}
+                teamMax={event.team_max}
+                head={
+                  profile
+                    ? {
+                        id: profile.id,
+                        participant_id: profile.participant_id ?? "",
+                        full_name: profile.full_name,
+                        email: profile.email,
+                        college: profile.college,
+                      }
+                    : null
+                }
               />
             </div>
           </div>

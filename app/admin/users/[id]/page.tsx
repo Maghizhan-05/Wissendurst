@@ -49,7 +49,9 @@ export default async function AdminUserPage({
       <div className="rounded-2xl border border-border bg-surface p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <p className="font-mono text-sm text-brand">{profile.participant_id}</p>
+            <p className="font-mono text-sm text-brand">
+              {profile.participant_id ?? "Pending approval"}
+            </p>
             <h1 className="mt-1 font-display text-2xl font-semibold text-foreground">
               {profile.full_name || "Unnamed participant"}
             </h1>

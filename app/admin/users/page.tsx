@@ -53,7 +53,9 @@ export default async function AdminUsersPage({
               {users.map((u) => (
                 <tr key={u.id} className="bg-surface hover:bg-surface-2/40">
                   <td className="px-4 py-3 font-mono text-xs text-brand">
-                    {u.participant_id}
+                    {u.participant_id ?? (
+                      <span className="text-muted">Pending approval</span>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <p className="font-medium text-foreground">{u.full_name || "—"}</p>

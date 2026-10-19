@@ -54,7 +54,7 @@ async function loadProfile(userId: string): Promise<ProfileRow | null> {
 export async function notifyWelcome(userId: string): Promise<void> {
   const p = await loadProfile(userId);
   if (!p) return;
-  const { subject, html } = welcomeEmail(p.full_name, p.participant_id);
+  const { subject, html } = welcomeEmail(p.full_name, p.participant_id ?? "");
   await sendMail({ to: p.email, subject, html });
 }
 
@@ -68,7 +68,7 @@ export async function notifySignupPending(userId: string): Promise<void> {
 export async function notifyApproval(userId: string): Promise<void> {
   const p = await loadProfile(userId);
   if (!p) return;
-  const { subject, html } = approvalGrantedEmail(p.full_name, p.participant_id);
+  const { subject, html } = approvalGrantedEmail(p.full_name, p.participant_id ?? "");
   await sendMail({ to: p.email, subject, html });
 }
 
@@ -84,7 +84,7 @@ export async function notifyRegistration(registrationId: string): Promise<void> 
   if (!data) return;
   const { subject, html } = registrationEmail(
     data.profile.full_name,
-    data.profile.participant_id,
+    data.profile.participant_id ?? "",
     data.event,
     data.registration.amount,
   );

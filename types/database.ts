@@ -14,7 +14,7 @@ import type {
 
 export interface ProfileRow {
   id: string; // = auth.users.id
-  participant_id: string; // unique
+  participant_id: string | null; // null until an admin approves the signup
   full_name: string;
   email: string;
   phone: string | null;
@@ -57,6 +57,9 @@ export interface EventRow {
   upi_id: string | null; // per-event UPI; resolved leaf-first up the tree
   discount_enabled: boolean; // sibling discount on this broader event
   discount_amount: number; // paise off a sibling sub-event once one is paid
+  team_enabled: boolean; // registration happens as a team
+  team_min: number; // smallest team size (head included)
+  team_max: number; // largest team size (head included)
   created_at: string;
   updated_at: string;
 }
@@ -73,6 +76,8 @@ export interface RegistrationRow {
   ocr_raw_text: string | null;
   ocr_confidence: number | null;
   amount: number; // paise
+  team_id: string | null; // set when this registration is part of a team
+  is_team_head: boolean; // the member who registered & pays for the team
   registered_at: string;
   verified_at: string | null;
   verified_by: string | null;

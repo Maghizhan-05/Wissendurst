@@ -56,6 +56,9 @@ function rowFromInput(input: EventInput) {
     upi_id: input.upi_id ? input.upi_id : null,
     discount_enabled: !!input.discount_enabled,
     discount_amount: Math.round((input.discount_amount_rupees ?? 0) * 100),
+    team_enabled: !!input.team_enabled,
+    team_min: 1, // solo allowed; the only limit is the max
+    team_max: Math.max(1, input.team_max ?? 4),
   };
 }
 
@@ -156,6 +159,8 @@ function parseEventForm(formData: FormData) {
     upi_id: formData.get("upi_id"),
     discount_enabled: formData.get("discount_enabled") === "on",
     discount_amount_rupees: formData.get("discount_amount_rupees") || 0,
+    team_enabled: formData.get("team_enabled") === "on",
+    team_max: formData.get("team_max") || 4,
   });
 }
 
