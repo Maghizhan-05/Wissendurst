@@ -19,11 +19,13 @@ export function EventsExplorer({
   events,
   registeredIds,
   subEventCounts = {},
+  discounts = {},
   initialCategory,
 }: {
   events: EventRow[];
   registeredIds: string[];
   subEventCounts?: Record<string, number>;
+  discounts?: Record<string, number>;
   initialCategory?: string;
 }) {
   const [query, setQuery] = useState("");
@@ -131,6 +133,7 @@ export function EventsExplorer({
               event={event}
               registered={registered.has(event.id)}
               subEventCount={subEventCounts[event.id] ?? 0}
+              discountPaise={discounts[event.id] ?? 0}
             />
           ))}
         </div>

@@ -25,6 +25,7 @@ import {
   getEventAncestors,
   getEventRegistrationCounts,
   getEventDiscount,
+  getEventDiscounts,
 } from "@/lib/data/events";
 import {
   getMyRegistrationForEvent,
@@ -68,11 +69,13 @@ export default async function EventPage({
 
   // A broader event with several sub-events renders as a hub.
   if (subEvents.length > 1) {
-    const [registeredIds, counts, ancestors] = await Promise.all([
+    const [registeredIds, counts, ancestors, profile] = await Promise.all([
       getMyRegisteredEventIds(),
       getSubEventCounts(),
       getEventAncestors(event),
+      getProfile(),
     ]);
+    const discounts = await getEventDiscounts(subEvents, profile?.id ?? null);
     return (
       <article className="py-10 md:py-14">
         <EventBackground category={event.category} slug={event.slug} />
@@ -115,6 +118,7 @@ export default async function EventPage({
                 event={sub}
                 registered={registeredIds.has(sub.id)}
                 subEventCount={counts[sub.id] ?? 0}
+                discountPaise={discounts[sub.id] ?? 0}
               />
             ))}
           </div>

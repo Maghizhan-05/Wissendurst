@@ -161,6 +161,104 @@ export async function getEventDiscount(
 }
 
 /**
+ * Discounts (paise) a user would get for a batch of events — same rule as
+ * getEventDiscount, computed in one pass for card grids. Only returns entries
+ * for events the user is eligible for AND not already registered for.
+ */
+export async function getEventDiscounts(
+  events: EventRow[],
+  userId: string | null,
+): Promise<Record<string, number>> {
+  const result: Record<string, number> = {};
+  if (!userId || events.length === 0) return result;
+
+  const supabase = await createClient();
+  const { data: evRows } = await supabase
+    .from("events")
+    .select("id, parent_event_id, discount_enabled, discount_amount");
+  const rows =
+    (evRows as {
+      id: string;
+      parent_event_id: string | null;
+      discount_enabled: boolean;
+      discount_amount: number;
+    }[]) ?? [];
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const childrenOf = new Map<string, string[]>();
+  for (const r of rows) {
+    if (r.parent_event_id) {
+      const a = childrenOf.get(r.parent_event_id) ?? [];
+      a.push(r.id);
+      childrenOf.set(r.parent_event_id, a);
+    }
+  }
+
+  const { data: regRows } = await supabase
+    .from("registrations")
+    .select("event_id, payment_status, registration_status")
+    .eq("profile_id", userId);
+  const verified = new Set<string>();
+  const active = new Set<string>();
+  for (const r of (regRows ?? []) as {
+    event_id: string;
+    payment_status: string;
+    registration_status: string;
+  }[]) {
+    if (r.registration_status !== "cancelled") active.add(r.event_id);
+    if (r.payment_status === "verified") verified.add(r.event_id);
+  }
+  if (verified.size === 0) return result;
+
+  const subtreeCache = new Map<string, Set<string>>();
+  const subtree = (rootId: string): Set<string> => {
+    const cached = subtreeCache.get(rootId);
+    if (cached) return cached;
+    const out = new Set<string>();
+    const stack = [rootId];
+    while (stack.length) {
+      const id = stack.pop() as string;
+      if (out.has(id)) continue;
+      out.add(id);
+      for (const c of childrenOf.get(id) ?? []) stack.push(c);
+    }
+    subtreeCache.set(rootId, out);
+    return out;
+  };
+
+  for (const ev of events) {
+    if (ev.team_enabled || ev.registration_fee <= 0) continue;
+    if ((childrenOf.get(ev.id) ?? []).length > 0) continue; // container
+    if (active.has(ev.id)) continue; // already registered
+
+    const ancestors: string[] = [];
+    const seen = new Set<string>([ev.id]);
+    let cur = ev.parent_event_id;
+    while (cur && !seen.has(cur) && ancestors.length < 5) {
+      seen.add(cur);
+      ancestors.push(cur);
+      cur = byId.get(cur)?.parent_event_id ?? null;
+    }
+    for (const ancId of ancestors) {
+      const anc = byId.get(ancId);
+      if (!anc?.discount_enabled || anc.discount_amount <= 0) continue;
+      const ids = subtree(ancId);
+      let eligible = false;
+      for (const eid of verified) {
+        if (eid !== ev.id && ids.has(eid)) {
+          eligible = true;
+          break;
+        }
+      }
+      if (eligible) {
+        result[ev.id] = Math.min(anc.discount_amount, ev.registration_fee);
+        break;
+      }
+    }
+  }
+  return result;
+}
+
+/**
  * The UPI id to charge for an event: its own, else the nearest ancestor's,
  * else null (caller falls back to the site default).
  */

@@ -11,14 +11,19 @@ export function EventCard({
   className,
   registered,
   subEventCount = 0,
+  discountPaise = 0,
 }: {
   event: EventRow;
   className?: string;
   registered?: boolean;
   /** >0 means this is a broader event that contains that many sub-events. */
   subEventCount?: number;
+  /** >0 shows a discounted price the signed-in user is eligible for. */
+  discountPaise?: number;
 }) {
   const isContainer = subEventCount > 0;
+  const discounted = !isContainer && discountPaise > 0 && event.registration_fee > 0;
+  const finalFee = Math.max(event.registration_fee - discountPaise, 0);
   return (
     <Link
       href={`/events/${event.slug}`}
@@ -43,6 +48,9 @@ export function EventCard({
             </Badge>
           )}
           {registered && <Badge tone="success">Registered</Badge>}
+          {discounted && (
+            <Badge tone="success">Save {formatINR(discountPaise)}</Badge>
+          )}
         </div>
         {!event.is_live ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/60 text-center backdrop-blur-[1px]">
@@ -85,6 +93,15 @@ export function EventCard({
             <span className="inline-flex items-center gap-1.5 text-sm font-medium text-muted">
               <Layers className="size-3.5" /> {subEventCount} sub-event
               {subEventCount === 1 ? "" : "s"}
+            </span>
+          ) : discounted ? (
+            <span className="flex items-baseline gap-1.5">
+              <span className="font-mono text-xs text-muted line-through">
+                {formatINR(event.registration_fee)}
+              </span>
+              <span className="font-mono text-sm font-semibold text-success">
+                {finalFee === 0 ? "Free" : formatINR(finalFee)}
+              </span>
             </span>
           ) : (
             <span className="font-mono text-sm font-semibold text-foreground">
