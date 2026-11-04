@@ -1,4 +1,4 @@
-# Wissendrust'27
+# Wissendurst'27
 
 A premium medical-symposium website with a full event-management system:
 discovery → registration → UPI/QR payment → OCR-assisted verification →

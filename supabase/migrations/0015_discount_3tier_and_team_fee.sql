@@ -1,5 +1,5 @@
 -- ============================================================================
--- WISSENDRUST'27 — 0015_discount_3tier_and_team_fee
+-- WISSENDURST'27 — 0015_discount_3tier_and_team_fee
 -- (1) Re-ship the sibling-discount function so the FULL ancestor chain is
 --     honoured (works across all three tiers). Enable the discount on the
 --     shared parent (e.g. "poster") OR any higher ancestor (e.g.

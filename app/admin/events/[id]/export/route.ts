@@ -93,7 +93,7 @@ export async function GET(
   });
 
   const workbook = new ExcelJS.Workbook();
-  workbook.creator = "Wissendrust'27";
+  workbook.creator = "Wissendurst'27";
   workbook.created = new Date();
   const sheet = workbook.addWorksheet("Participants");
 

@@ -1,5 +1,5 @@
 -- ============================================================================
--- WISSENDRUST'27 — 0001_init
+-- WISSENDURST'27 — 0001_init
 -- Enums, tables, participant-ID generation, triggers, indexes.
 -- Money is stored as INTEGER PAISE. Timestamps are timestamptz.
 -- ============================================================================

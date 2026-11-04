@@ -7,7 +7,7 @@ import { EcgDivider } from "@/components/ui/misc";
 export const metadata: Metadata = {
   title: "About",
   description:
-    "About Wissendrust'27 — a student-led medical symposium built for the clinically curious.",
+    "About Wissendurst'27 — a student-led medical symposium built for the clinically curious.",
 };
 
 const FACTS = [
@@ -23,7 +23,7 @@ export default function AboutPage() {
         <SectionHeading
           eyebrow="About"
           title="A symposium built by students, for students."
-          description="Wissendrust'27 is a medical college symposium that puts curiosity on a stage. We bring together workshops, debate, and original research into three intense, rewarding days."
+          description="Wissendurst'27 is a medical college symposium that puts curiosity on a stage. We bring together workshops, debate, and original research into three intense, rewarding days."
         />
 
         <div className="mt-12 grid gap-6 sm:grid-cols-3">
@@ -48,7 +48,7 @@ export default function AboutPage() {
               What we stand for
             </h2>
             <p className="mt-4 leading-relaxed text-muted">
-              Medicine advances by asking better questions. Wissendrust exists to
+              Medicine advances by asking better questions. Wissendurst exists to
               reward that instinct — to give students a place to test skills, argue
               ideas, and present work to people who take it seriously. No gate-keeping,
               no filler. Just a well-run event where good work gets seen.

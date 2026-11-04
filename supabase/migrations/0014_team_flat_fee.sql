@@ -1,5 +1,5 @@
 -- ============================================================================
--- WISSENDRUST'27 — 0014_team_flat_fee
+-- WISSENDURST'27 — 0014_team_flat_fee
 -- A team pays a single FLAT fee (the event's registration_fee) regardless of
 -- how many members are on the team — not fee × size. The head's registration
 -- carries that flat amount; teammates stay at 0 and are confirmed when the

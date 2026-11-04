@@ -1,5 +1,5 @@
 -- ============================================================================
--- WISSENDRUST'27 — 0007_approvals_and_admin_scopes
+-- WISSENDURST'27 — 0007_approvals_and_admin_scopes
 -- (1) Signup approval gate + ID-card verification.
 -- (2) Scoped admin permissions: signups / events / payments / content, plus a
 --     super admin who has everything.

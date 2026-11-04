@@ -109,10 +109,18 @@ export async function getParentEventOptions(
   excludeId?: string,
 ): Promise<ParentOption[]> {
   const supabase = await createClient();
-  const { data } = await supabase.from("events").select("id, title, parent_event_id");
-  const rows =
-    (data as { id: string; title: string; parent_event_id: string | null }[]) ??
-    [];
+  const { data } = await supabase
+    .from("events")
+    .select("id, title, parent_event_id, archived_at");
+  const allRows =
+    (data as {
+      id: string;
+      title: string;
+      parent_event_id: string | null;
+      archived_at: string | null;
+    }[]) ?? [];
+  // Archived events can't take new sub-events.
+  const rows = allRows.filter((r) => !r.archived_at);
 
   const parentOf = new Map(rows.map((r) => [r.id, r.parent_event_id]));
   const childrenOf = new Map<string, string[]>();
@@ -152,6 +160,30 @@ export async function getParentEventOptions(
     .map((r) => ({ id: r.id, title: r.title, depth: depthOf(r.id) }))
     .filter((o) => o.depth < 2 && !excluded.has(o.id))
     .sort((a, b) => a.depth - b.depth || a.title.localeCompare(b.title));
+}
+
+/**
+ * Ids of events that carry registration or team history themselves. Callers
+ * roll this up the tree: an event whose subtree has history must be archived,
+ * never deleted (the database enforces the same rule).
+ */
+export async function getEventIdsWithHistory(): Promise<Set<string>> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("admin_event_ids_with_history");
+  if (error) {
+    console.error("admin_event_ids_with_history failed:", error);
+    // Unknown usage: treat every event as used so the UI never offers a
+    // permanent delete it can't justify (the database still enforces it).
+    return new Set(["*"]);
+  }
+  const rows = (data ?? []) as unknown[];
+  return new Set(
+    rows.map((r) =>
+      typeof r === "string"
+        ? r
+        : String(Object.values(r as Record<string, unknown>)[0]),
+    ),
+  );
 }
 
 export async function getEventByIdAdmin(id: string): Promise<EventRow | null> {

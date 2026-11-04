@@ -78,7 +78,7 @@ export interface LandingContent {
 export const DEFAULT_LANDING: LandingContent = {
   hero: {
     eyebrow: "Medical Symposium · College Event",
-    titleLine1: "Wissendrust",
+    titleLine1: "Wissendurst",
     titleAccent: "'27",
     taglineLine1: "Where medicine",
     taglineLine2: "meets curiosity.",
@@ -94,7 +94,7 @@ export const DEFAULT_LANDING: LandingContent = {
     eyebrow: "Introduction",
     title: "A symposium for the clinically curious.",
     paragraphs: [
-      "Wissendrust'27 gathers students across medicine and the allied sciences for three days of hands-on learning, sharp argument, and original research. It exists to give curiosity a stage — and a scoreboard.",
+      "Wissendurst'27 gathers students across medicine and the allied sciences for three days of hands-on learning, sharp argument, and original research. It exists to give curiosity a stage — and a scoreboard.",
       "Whether you suture at a skills station, defend a bioethics motion, or present a case that changed how you think, this is where the work gets seen. Open to under- and post-graduate students from any institution.",
     ],
   },
@@ -144,11 +144,11 @@ export const DEFAULT_LANDING: LandingContent = {
       { label: "Venue", value: "Medical College Campus" },
       { label: "Registration deadline", value: "February 8, 2027" },
       { label: "Eligibility", value: "Under- & post-graduate students" },
-      { label: "Contact", value: "hello@wissendrust.example" },
+      { label: "Contact", value: "hello@wissendurst.example" },
     ],
   },
   finalCta: {
-    title: "Ready to be part of Wissendrust'27?",
+    title: "Ready to be part of Wissendurst'27?",
     description:
       "Create your account, claim your participant ID, and register in minutes.",
     ctaPrimary: "Register Now",
@@ -156,7 +156,7 @@ export const DEFAULT_LANDING: LandingContent = {
   },
   footer: {
     tagline: "Where Medicine Meets Curiosity",
-    contactEmail: "hello@wissendrust.example",
+    contactEmail: "hello@wissendurst.example",
     dates: "Feb 12–14, 2027",
   },
 };

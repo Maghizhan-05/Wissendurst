@@ -1,5 +1,5 @@
 -- ============================================================================
--- WISSENDRUST'27 — 0011_approval_id_and_discount_fix
+-- WISSENDURST'27 — 0011_approval_id_and_discount_fix
 -- (1) Participant IDs are now assigned ONLY when an admin approves the signup,
 --     not at signup time. Pending users have a null participant_id (shown as
 --     "Pending" in the admin panel).

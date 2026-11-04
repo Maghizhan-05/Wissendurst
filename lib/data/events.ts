@@ -1,12 +1,20 @@
 import { createClient } from "@/lib/supabase/server";
 import type { EventRow } from "@/types/database";
 
-/** All events, newest-dated first (nulls last). */
+/**
+ * Public event queries below all exclude archived events. Archived events stay
+ * readable to admins (and to participants with history in them) through RLS,
+ * so the explicit `archived_at is null` filter is what keeps them off public
+ * pages for everyone.
+ */
+
+/** All public (non-archived) events, newest-dated first (nulls last). */
 export async function getEvents(): Promise<EventRow[]> {
   const supabase = await createClient();
   const { data } = await supabase
     .from("events")
     .select("*")
+    .is("archived_at", null)
     .order("featured", { ascending: false })
     .order("event_date", { ascending: true, nullsFirst: false });
   return (data as EventRow[]) ?? [];
@@ -19,6 +27,7 @@ export async function getTopLevelEvents(): Promise<EventRow[]> {
     .from("events")
     .select("*")
     .is("parent_event_id", null)
+    .is("archived_at", null)
     .order("featured", { ascending: false })
     .order("event_date", { ascending: true, nullsFirst: false });
   return (data as EventRow[]) ?? [];
@@ -31,6 +40,7 @@ export async function getSubEvents(parentId: string): Promise<EventRow[]> {
     .from("events")
     .select("*")
     .eq("parent_event_id", parentId)
+    .is("archived_at", null)
     .order("event_date", { ascending: true, nullsFirst: false })
     .order("title", { ascending: true });
   return (data as EventRow[]) ?? [];
@@ -42,7 +52,8 @@ export async function getSubEventCounts(): Promise<Record<string, number>> {
   const { data } = await supabase
     .from("events")
     .select("parent_event_id")
-    .not("parent_event_id", "is", null);
+    .not("parent_event_id", "is", null)
+    .is("archived_at", null);
   const counts: Record<string, number> = {};
   for (const r of (data ?? []) as { parent_event_id: string }[]) {
     counts[r.parent_event_id] = (counts[r.parent_event_id] ?? 0) + 1;
@@ -278,6 +289,7 @@ export async function getFeaturedEvents(limit = 4): Promise<EventRow[]> {
     .from("events")
     .select("*")
     .eq("featured", true)
+    .is("archived_at", null)
     .order("event_date", { ascending: true, nullsFirst: false })
     .limit(limit);
   return (data as EventRow[]) ?? [];
@@ -289,6 +301,7 @@ export async function getEventBySlug(slug: string): Promise<EventRow | null> {
     .from("events")
     .select("*")
     .eq("slug", slug)
+    .is("archived_at", null)
     .maybeSingle();
   return (data as EventRow) ?? null;
 }
@@ -296,7 +309,10 @@ export async function getEventBySlug(slug: string): Promise<EventRow | null> {
 /** Slugs for generateStaticParams / sitemap. */
 export async function getAllEventSlugs(): Promise<string[]> {
   const supabase = await createClient();
-  const { data } = await supabase.from("events").select("slug");
+  const { data } = await supabase
+    .from("events")
+    .select("slug")
+    .is("archived_at", null);
   return (data ?? []).map((r) => (r as { slug: string }).slug);
 }
 

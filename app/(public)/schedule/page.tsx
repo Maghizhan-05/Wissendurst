@@ -12,7 +12,7 @@ import type { EventRow } from "@/types/database";
 
 export const metadata: Metadata = {
   title: "Schedule",
-  description: "The full Wissendrust'27 programme, day by day.",
+  description: "The full Wissendurst'27 programme, day by day.",
 };
 
 export default async function SchedulePage() {

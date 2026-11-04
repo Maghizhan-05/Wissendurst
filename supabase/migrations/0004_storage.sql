@@ -1,5 +1,5 @@
 -- ============================================================================
--- WISSENDRUST'27 — 0004_storage
+-- WISSENDURST'27 — 0004_storage
 -- Buckets and storage RLS. Payment screenshots are PRIVATE (signed URLs only).
 -- Convention: user-scoped files live under a top-level folder = the user id,
 -- e.g. payment-screenshots/<uid>/<registration_id>.png

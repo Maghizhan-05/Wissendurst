@@ -54,7 +54,7 @@ export function LoginForm({ next }: { next?: string }) {
       </form>
 
       <p className="mt-6 text-center text-sm text-muted">
-        New to Wissendrust?{" "}
+        New to Wissendurst?{" "}
         <Link href="/signup" className="font-medium text-brand hover:underline">
           Create an account
         </Link>

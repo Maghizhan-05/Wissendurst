@@ -1,5 +1,5 @@
 -- ============================================================================
--- WISSENDRUST'27 — 0009_sub_events
+-- WISSENDURST'27 — 0009_sub_events
 -- Sub-events: a "broader" event (e.g. "Quiz", "Workshops") can hold several
 -- sub-events that participants actually register for. Modelled as a single
 -- self-referential tree on public.events:

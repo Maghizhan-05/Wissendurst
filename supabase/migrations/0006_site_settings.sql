@@ -1,5 +1,5 @@
 -- ============================================================================
--- WISSENDRUST'27 — 0006_site_settings
+-- WISSENDURST'27 — 0006_site_settings
 -- Editable landing-page content. A single-row table (id = 1) holding a JSONB
 -- blob that the app merges over its built-in defaults.
 -- ============================================================================

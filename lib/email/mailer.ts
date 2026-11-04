@@ -10,7 +10,7 @@ import nodemailer, { type Transporter } from "nodemailer";
  *   SMTP_PORT   default 465 (SSL). Use 587 for STARTTLS.
  *   SMTP_USER   your gmail address
  *   SMTP_PASS   the 16-char app password
- *   MAIL_FROM   optional display From, e.g. "Wissendrust'27 <you@gmail.com>"
+ *   MAIL_FROM   optional display From, e.g. "Wissendurst'27 <you@gmail.com>"
  */
 let cached: Transporter | null = null;
 
@@ -33,7 +33,7 @@ function getTransport(): Transporter | null {
 export function mailFrom(): string {
   return (
     process.env.MAIL_FROM ??
-    `Wissendrust'27 <${process.env.SMTP_USER ?? "no-reply@example.com"}>`
+    `Wissendurst'27 <${process.env.SMTP_USER ?? "no-reply@example.com"}>`
   );
 }
 

@@ -107,8 +107,8 @@ export const SCREENSHOT_ACCEPTED_TYPES = [
 ] as const;
 
 export const SITE = {
-  name: "Wissendrust'27",
+  name: "Wissendurst'27",
   tagline: "Where Medicine Meets Curiosity",
   description:
-    "Wissendrust'27 — a medical symposium of workshops, debates, paper and poster presentations, and academic competitions. Discover events, register, and participate.",
+    "Wissendurst'27 — a medical symposium of workshops, debates, paper and poster presentations, and academic competitions. Discover events, register, and participate.",
 } as const;

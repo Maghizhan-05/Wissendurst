@@ -1,5 +1,5 @@
 -- ============================================================================
--- WISSENDRUST'27 — seed data (sample events)
+-- WISSENDURST'27 — seed data (sample events)
 -- Run AFTER the migrations. Safe to re-run (upserts on slug).
 -- ============================================================================
 

@@ -7,7 +7,7 @@ function shell(heading: string, bodyHtml: string, cta?: { label: string; href: s
   <div style="margin:0;padding:24px;background:#f5fbfa;font-family:Arial,Helvetica,sans-serif;color:#102a2a;">
     <div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #d5e5e2;border-radius:16px;overflow:hidden;">
       <div style="background:#071a1d;padding:20px 28px;">
-        <span style="color:#f5fffd;font-size:18px;font-weight:700;letter-spacing:-0.02em;">Wissendrust'27</span>
+        <span style="color:#f5fffd;font-size:18px;font-weight:700;letter-spacing:-0.02em;">Wissendurst'27</span>
         <span style="color:#32d6c1;font-size:12px;margin-left:8px;">Where medicine meets curiosity</span>
       </div>
       <div style="padding:28px;">
@@ -22,7 +22,7 @@ function shell(heading: string, bodyHtml: string, cta?: { label: string; href: s
         }
       </div>
       <div style="padding:16px 28px;border-top:1px solid #d5e5e2;color:#627775;font-size:12px;">
-        You're receiving this because you registered on Wissendrust'27.
+        You're receiving this because you registered on Wissendurst'27.
       </div>
     </div>
   </div>`;
@@ -34,7 +34,7 @@ function pid(participantId: string): string {
 
 export function signupPendingEmail(name: string) {
   return {
-    subject: "We received your Wissendrust'27 signup",
+    subject: "We received your Wissendurst'27 signup",
     html: shell(
       `Thanks, ${name || "there"} 👋`,
       `<p style="line-height:1.6;">Your account and ID card have been received and are now waiting for an organizer to approve.</p>
@@ -45,7 +45,7 @@ export function signupPendingEmail(name: string) {
 
 export function approvalGrantedEmail(name: string, participantId: string) {
   return {
-    subject: "You're approved — welcome to Wissendrust'27 ✅",
+    subject: "You're approved — welcome to Wissendurst'27 ✅",
     html: shell(
       `You're in, ${name || "there"}! 🎉`,
       `<p style="line-height:1.6;">An organizer has approved your account. You can now log in. Your participant ID is ${pid(participantId)} — keep it handy for every event and payment.</p>`,
@@ -56,7 +56,7 @@ export function approvalGrantedEmail(name: string, participantId: string) {
 
 export function approvalRejectedEmail(name: string) {
   return {
-    subject: "Update on your Wissendrust'27 signup",
+    subject: "Update on your Wissendurst'27 signup",
     html: shell(
       `Hi ${name || "there"}`,
       `<p style="line-height:1.6;">We're sorry — your account could not be approved at this time. If you think this is a mistake, please reply to this email or contact the organizers.</p>`,
@@ -66,7 +66,7 @@ export function approvalRejectedEmail(name: string) {
 
 export function welcomeEmail(name: string, participantId: string) {
   return {
-    subject: "Welcome to Wissendrust'27 — your participant ID",
+    subject: "Welcome to Wissendurst'27 — your participant ID",
     html: shell(
       `Welcome, ${name || "there"} 👋`,
       `<p style="line-height:1.6;color:#102a2a;">Your account is ready. Your participant ID is ${pid(participantId)} — you'll use it for every event and payment, so keep it handy.</p>

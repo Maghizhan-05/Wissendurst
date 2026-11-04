@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   },
   description: SITE.description,
   keywords: [
-    "Wissendrust",
+    "Wissendurst",
     "medical symposium",
     "medical college event",
     "workshops",

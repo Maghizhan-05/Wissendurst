@@ -13,7 +13,10 @@ async function eventSlugs(): Promise<string[]> {
     const supabase = createClient(url, key, {
       auth: { persistSession: false },
     });
-    const { data } = await supabase.from("events").select("slug");
+    const { data } = await supabase
+      .from("events")
+      .select("slug")
+      .is("archived_at", null);
     return (data ?? []).map((r) => (r as { slug: string }).slug);
   } catch {
     return [];

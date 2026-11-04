@@ -1,5 +1,5 @@
 -- ============================================================================
--- WISSENDRUST'27 — 0010_upi_discount
+-- WISSENDURST'27 — 0010_upi_discount
 -- 1. Per-event UPI id (shown as the payment QR). Resolved leaf-first: a
 --    registerable event uses its own upi_id, else the nearest ancestor's,
 --    else the env default. Set it at any level (event / sub / sub-sub).

@@ -12,7 +12,7 @@ import { getProfile } from "@/lib/auth";
 export const metadata: Metadata = {
   title: "Events",
   description:
-    "Browse every Wissendrust'27 event — workshops, debates, paper and poster presentations, and competitions.",
+    "Browse every Wissendurst'27 event — workshops, debates, paper and poster presentations, and competitions.",
 };
 
 export default async function EventsPage({

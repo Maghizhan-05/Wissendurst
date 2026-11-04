@@ -1,5 +1,5 @@
 -- ============================================================================
--- WISSENDRUST'27 — 0012_team_registration
+-- WISSENDURST'27 — 0012_team_registration
 -- Team registration for events that opt in. The team head enters teammates by
 -- their participant id (W27/E/…); the backend groups everyone into a team, one
 -- registration per member sharing a team_id, and the head pays the combined

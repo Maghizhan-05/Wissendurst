@@ -1,5 +1,5 @@
 -- ============================================================================
--- WISSENDRUST'27 — 0003_functions
+-- WISSENDURST'27 — 0003_functions
 -- SECURITY DEFINER RPCs that centralise the rules RLS cannot express safely:
 -- capacity-checked registration, duplicate-aware payment submission, and
 -- admin-only payment state transitions.

@@ -126,13 +126,20 @@ export function RegistrationFlipCard({
                 <CreditCard className="size-3.5" /> Pay now
               </Link>
             )}
-            <Link
-              href={`/events/${event.slug}`}
-              onClick={(e) => e.stopPropagation()}
-              className="inline-flex flex-1 items-center justify-center gap-1 rounded-full border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-surface-2"
-            >
-              View event <ArrowUpRight className="size-3.5" />
-            </Link>
+            {event.archived_at ? (
+              // Archived events have no public page any more.
+              <span className="inline-flex flex-1 items-center justify-center rounded-full border border-border px-3 py-2 text-xs font-medium text-muted">
+                Event archived
+              </span>
+            ) : (
+              <Link
+                href={`/events/${event.slug}`}
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex flex-1 items-center justify-center gap-1 rounded-full border border-border px-3 py-2 text-xs font-medium text-foreground hover:bg-surface-2"
+              >
+                View event <ArrowUpRight className="size-3.5" />
+              </Link>
+            )}
           </div>
         </div>
       </div>

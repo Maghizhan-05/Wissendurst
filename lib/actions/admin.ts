@@ -81,8 +81,12 @@ async function validateParent(
 
   const { data } = await supabase
     .from("events")
-    .select("id, parent_event_id");
-  const rows = (data ?? []) as { id: string; parent_event_id: string | null }[];
+    .select("id, parent_event_id, archived_at");
+  const rows = (data ?? []) as {
+    id: string;
+    parent_event_id: string | null;
+    archived_at: string | null;
+  }[];
   const parentOf = new Map(rows.map((r) => [r.id, r.parent_event_id]));
   const childrenOf = new Map<string, string[]>();
   for (const r of rows) {
@@ -93,6 +97,8 @@ async function validateParent(
     }
   }
   if (!parentOf.has(parentId)) return "That broader event no longer exists.";
+  if (rows.find((r) => r.id === parentId)?.archived_at)
+    return "That broader event is archived — restore it first.";
 
   // Depth of the chosen parent (root = 0), with a cycle guard.
   const depthOf = (id: string): number => {
@@ -214,10 +220,19 @@ export async function updateEvent(
   );
   if (parentError) return { ok: false, error: parentError };
 
-  const { error } = await supabase
+  const row = rowFromInput(parsed.data);
+  const { data: current } = await supabase
     .from("events")
-    .update(rowFromInput(parsed.data))
-    .eq("id", id);
+    .select("archived_at")
+    .eq("id", id)
+    .maybeSingle();
+  if ((current as { archived_at: string | null } | null)?.archived_at) {
+    // Archived events stay closed and unfeatured until restored.
+    row.registration_open = false;
+    row.featured = false;
+  }
+
+  const { error } = await supabase.from("events").update(row).eq("id", id);
   if (error) {
     if (error.code === "23505")
       return { ok: false, error: "That slug is already in use." };
@@ -228,14 +243,93 @@ export async function updateEvent(
   redirect("/admin/events");
 }
 
-export async function deleteEvent(formData: FormData): Promise<void> {
+const EVENT_ADMIN_ERRORS: Record<string, string> = {
+  FORBIDDEN: "You don't have permission to manage events.",
+  EVENT_NOT_FOUND: "That event no longer exists.",
+  EVENT_HAS_HISTORY:
+    "This event (or one of its sub-events) has registrations or payment history, so it can't be deleted. Archive it instead.",
+  PARENT_ARCHIVED: "Its broader event is archived — restore that first.",
+};
+
+function mapEventAdminError(message: string | undefined, fallback: string) {
+  if (message) {
+    for (const key of Object.keys(EVENT_ADMIN_ERRORS)) {
+      if (message.includes(key)) return EVENT_ADMIN_ERRORS[key];
+    }
+  }
+  return fallback;
+}
+
+function revalidateEventSurfaces() {
+  revalidatePath("/admin/events");
+  revalidatePath("/admin/registrations");
+  revalidatePath("/admin/collections");
+  revalidatePath("/events");
+  revalidatePath("/events/[slug]", "page");
+  revalidatePath("/schedule");
+  revalidatePath("/");
+  revalidatePath("/dashboard/registrations");
+}
+
+/**
+ * Permanently deletes an event — only when neither it nor any sub-event has
+ * registration, team or payment history (enforced by admin_delete_event and
+ * ON DELETE RESTRICT in the database). Used events must be archived.
+ */
+export async function deleteEvent(
+  _prev: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
   await requireScope("events");
   const id = String(formData.get("id") ?? "");
-  if (!id) return;
+  if (!id) return { ok: false, error: "Missing event id." };
+
   const supabase = await createClient();
-  await supabase.from("events").delete().eq("id", id);
-  revalidatePath("/admin/events");
-  revalidatePath("/events");
+  const { error } = await supabase.rpc("admin_delete_event", {
+    p_event_id: id,
+  });
+  if (error) {
+    console.error("admin_delete_event failed:", error);
+    return {
+      ok: false,
+      error: mapEventAdminError(error.message, "Could not delete event."),
+    };
+  }
+  revalidateEventSurfaces();
+  return { ok: true, message: "Event deleted." };
+}
+
+/**
+ * Archives (or restores) an event together with its sub-events. Archived
+ * events are hidden publicly and closed to registration; their registration
+ * and payment history stays available to admins and exports.
+ */
+export async function setEventArchived(
+  _prev: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  await requireScope("events");
+  const id = String(formData.get("id") ?? "");
+  const archive = formData.get("archive") === "true";
+  if (!id) return { ok: false, error: "Missing event id." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_set_event_archived", {
+    p_event_id: id,
+    p_archived: archive,
+  });
+  if (error) {
+    console.error("admin_set_event_archived failed:", error);
+    return {
+      ok: false,
+      error: mapEventAdminError(
+        error.message,
+        archive ? "Could not archive event." : "Could not restore event.",
+      ),
+    };
+  }
+  revalidateEventSurfaces();
+  return { ok: true, message: archive ? "Event archived." : "Event restored." };
 }
 
 export async function toggleEventFlag(formData: FormData): Promise<void> {
@@ -246,7 +340,12 @@ export async function toggleEventFlag(formData: FormData): Promise<void> {
   if (!id || !["featured", "registration_open", "is_live"].includes(field)) return;
 
   const supabase = await createClient();
-  await supabase.from("events").update({ [field]: !value }).eq("id", id);
+  // Archived events are frozen: no featuring, reopening or going live.
+  await supabase
+    .from("events")
+    .update({ [field]: !value })
+    .eq("id", id)
+    .is("archived_at", null);
   revalidatePath("/admin/events");
   revalidatePath("/events");
 }

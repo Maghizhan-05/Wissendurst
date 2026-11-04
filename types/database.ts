@@ -61,6 +61,8 @@ export interface EventRow {
   team_min: number; // smallest team size (head included)
   team_max: number; // largest team size (head included)
   team_fee: number; // paise — flat fee for a team of 2+ (lone = registration_fee)
+  archived_at: string | null; // set = archived: hidden publicly, no registration
+  archived_by: string | null; // admin who archived it
   created_at: string;
   updated_at: string;
 }

@@ -1,5 +1,5 @@
 -- ============================================================================
--- WISSENDRUST'27 — 0005_participant_id_format
+-- WISSENDURST'27 — 0005_participant_id_format
 -- Switch participant IDs from random 5-char codes to sequential WD27/0001,
 -- WD27/0002, … Uniqueness is guaranteed by the sequence + the existing unique
 -- constraint on profiles.participant_id.

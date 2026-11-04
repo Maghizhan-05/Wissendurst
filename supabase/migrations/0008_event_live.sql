@@ -1,5 +1,5 @@
 -- ============================================================================
--- WISSENDRUST'27 — 0008_event_live
+-- WISSENDURST'27 — 0008_event_live
 -- "Live" flag on events. Only live events accept registration; non-live events
 -- show as "Coming soon" (locked) on the site. Admins toggle it per event.
 -- ============================================================================

@@ -26,7 +26,7 @@ export default async function PaymentPage({ params }: PageProps<"/dashboard/paym
   const note = `WD27 ${profile.participant_id} ${event.slug}`.slice(0, 40);
   const upiId = (await resolveEventUpiId(event)) ?? defaultUpiId();
   const qr = await upiQrDataUrl(registration.amount, note, upiId);
-  const payee = process.env.NEXT_PUBLIC_UPI_PAYEE_NAME ?? "Wissendrust 27";
+  const payee = process.env.NEXT_PUBLIC_UPI_PAYEE_NAME ?? "Wissendurst 27";
   const discount = event.registration_fee - registration.amount;
 
   return (

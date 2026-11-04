@@ -3,7 +3,7 @@ import QRCode from "qrcode";
 
 /** The site-wide default UPI id used when no event (or ancestor) sets one. */
 export function defaultUpiId(): string {
-  return process.env.NEXT_PUBLIC_UPI_ID ?? "wissendrust@examplebank";
+  return process.env.NEXT_PUBLIC_UPI_ID ?? "wissendurst@examplebank";
 }
 
 /**
@@ -16,7 +16,7 @@ export function buildUpiUri(
   upiId?: string | null,
 ): string {
   const pa = upiId && upiId.trim() ? upiId.trim() : defaultUpiId();
-  const pn = process.env.NEXT_PUBLIC_UPI_PAYEE_NAME ?? "Wissendrust 27";
+  const pn = process.env.NEXT_PUBLIC_UPI_PAYEE_NAME ?? "Wissendurst 27";
   const am = (amountPaise / 100).toFixed(2);
   const params = new URLSearchParams({
     pa,
