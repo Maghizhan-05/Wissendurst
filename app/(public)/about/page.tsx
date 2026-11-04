@@ -3,77 +3,95 @@ import { Container } from "@/components/ui/container";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { ButtonLink } from "@/components/ui/button";
 import { EcgDivider } from "@/components/ui/misc";
+import { safeHrefOr } from "@/components/content/safe-link";
+import { getAboutContent } from "@/lib/data/settings";
+import { paragraphs } from "@/lib/content/about";
+import { cn } from "@/lib/utils";
 
-export const metadata: Metadata = {
-  title: "About",
-  description:
-    "About Wissendurst'27 — a student-led medical symposium built for the clinically curious.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const about = await getAboutContent();
+  return { title: "About", description: about.metaDescription };
+}
 
-const FACTS = [
-  { k: "3", v: "days of programme" },
-  { k: "6", v: "event tracks" },
-  { k: "1", v: "participant ID, all events" },
-];
+/** About page — every visible string comes from the admin-managed settings. */
+export default async function AboutPage() {
+  const about = await getAboutContent();
+  const facts = about.facts.visible ? about.facts.items : [];
+  const sections = about.sections.filter((s) => s.visible);
+  const cta = about.cta;
+  const showCta = cta.visible && (cta.primaryLabel || cta.secondaryLabel);
 
-export default function AboutPage() {
   return (
     <div className="py-14 md:py-20">
       <Container>
         <SectionHeading
-          eyebrow="About"
-          title="A symposium built by students, for students."
-          description="Wissendurst'27 is a medical college symposium that puts curiosity on a stage. We bring together workshops, debate, and original research into three intense, rewarding days."
+          eyebrow={about.eyebrow}
+          title={about.title}
+          description={about.intro}
         />
 
-        <div className="mt-12 grid gap-6 sm:grid-cols-3">
-          {FACTS.map((f) => (
-            <div
-              key={f.v}
-              className="rounded-2xl border border-border bg-surface p-6"
-            >
-              <p className="font-display text-4xl font-semibold text-brand">
-                {f.k}
-              </p>
-              <p className="mt-1 text-sm text-muted">{f.v}</p>
+        {facts.length > 0 && (
+          <dl
+            className={cn(
+              "mt-12 grid gap-6",
+              facts.length === 2 && "sm:grid-cols-2",
+              facts.length === 4 && "sm:grid-cols-2 lg:grid-cols-4",
+              (facts.length === 3 || facts.length >= 5) && "sm:grid-cols-3",
+            )}
+          >
+            {facts.map((f) => (
+              <div
+                key={f.id}
+                className="flex flex-col-reverse rounded-2xl border border-border bg-surface p-6"
+              >
+                <dt className="mt-1 text-sm text-muted">{f.label}</dt>
+                <dd className="font-display text-4xl font-semibold text-brand">
+                  {f.value}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        )}
+
+        {sections.length > 0 && (
+          <>
+            <EcgDivider className="my-14" />
+            <div className={cn("grid gap-10", sections.length > 1 && "lg:grid-cols-2")}>
+              {sections.map((s) => (
+                <section key={s.id}>
+                  <h2 className="font-display text-2xl font-semibold text-foreground">
+                    {s.heading}
+                  </h2>
+                  {paragraphs(s.body).map((p, i) => (
+                    <p key={i} className="mt-4 leading-relaxed text-muted">
+                      {p}
+                    </p>
+                  ))}
+                </section>
+              ))}
             </div>
-          ))}
-        </div>
+          </>
+        )}
 
-        <EcgDivider className="my-14" />
-
-        <div className="grid gap-10 lg:grid-cols-2">
-          <div>
-            <h2 className="font-display text-2xl font-semibold text-foreground">
-              What we stand for
-            </h2>
-            <p className="mt-4 leading-relaxed text-muted">
-              Medicine advances by asking better questions. Wissendurst exists to
-              reward that instinct — to give students a place to test skills, argue
-              ideas, and present work to people who take it seriously. No gate-keeping,
-              no filler. Just a well-run event where good work gets seen.
-            </p>
+        {showCta && (
+          <div className="mt-14 flex flex-wrap gap-3">
+            {cta.primaryLabel && (
+              <ButtonLink href={safeHrefOr(cta.primaryHref, "/events")} size="lg" withArrow>
+                {cta.primaryLabel}
+              </ButtonLink>
+            )}
+            {cta.secondaryLabel && (
+              <ButtonLink
+                href={safeHrefOr(cta.secondaryHref, "/signup")}
+                size="lg"
+                variant="outline"
+                withArrow
+              >
+                {cta.secondaryLabel}
+              </ButtonLink>
+            )}
           </div>
-          <div>
-            <h2 className="font-display text-2xl font-semibold text-foreground">
-              Who can take part
-            </h2>
-            <p className="mt-4 leading-relaxed text-muted">
-              Under- and post-graduate students across medicine, dentistry, nursing,
-              and the allied health sciences — from any institution. Some events have
-              specific eligibility; each event page states its own rules and capacity.
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-14 flex flex-wrap gap-3">
-          <ButtonLink href="/events" size="lg" withArrow>
-            Explore Events
-          </ButtonLink>
-          <ButtonLink href="/signup" size="lg" variant="outline" withArrow>
-            Register
-          </ButtonLink>
-        </div>
+        )}
       </Container>
     </div>
   );

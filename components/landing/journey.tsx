@@ -20,6 +20,7 @@ const ICONS: LucideIcon[] = [
 ];
 
 export function Journey({ journey }: { journey: LandingContent["journey"] }) {
+  if (!journey.visible) return null;
   return (
     <section className="py-20 md:py-28">
       <Container>

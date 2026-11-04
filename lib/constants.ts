@@ -63,7 +63,7 @@ export const ADMIN_SCOPE_LABELS: Record<AdminScope, string> = {
   signups: "Signup approvals",
   events: "Events & registrations",
   payments: "Payment approvals",
-  content: "Landing page",
+  content: "Site content & appearance",
 };
 
 export const REGISTRATION_STATUS_LABELS: Record<RegistrationStatus, string> = {

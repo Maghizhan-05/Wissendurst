@@ -3,6 +3,7 @@ import { HeroScene } from "@/components/three/hero-scene";
 import { Reveal } from "@/components/motion/reveal";
 import { ButtonLink } from "@/components/ui/button";
 import { Container } from "@/components/ui/container";
+import { safeHrefOr } from "@/components/content/safe-link";
 import type { LandingContent } from "@/lib/content/landing";
 
 export function Hero({ hero }: { hero: LandingContent["hero"] }) {
@@ -51,12 +52,21 @@ export function Hero({ hero }: { hero: LandingContent["hero"] }) {
 
           <Reveal delay={0.36}>
             <div className="mt-9 flex flex-wrap gap-3">
-              <ButtonLink href="/signup" size="lg" withArrow>
-                {hero.ctaPrimary}
-              </ButtonLink>
-              <ButtonLink href="/events" size="lg" variant="outline" withArrow>
-                {hero.ctaSecondary}
-              </ButtonLink>
+              {hero.ctaPrimary && (
+                <ButtonLink href={safeHrefOr(hero.ctaPrimaryHref, "/signup")} size="lg" withArrow>
+                  {hero.ctaPrimary}
+                </ButtonLink>
+              )}
+              {hero.ctaSecondary && (
+                <ButtonLink
+                  href={safeHrefOr(hero.ctaSecondaryHref, "/events")}
+                  size="lg"
+                  variant="outline"
+                  withArrow
+                >
+                  {hero.ctaSecondary}
+                </ButtonLink>
+              )}
             </div>
           </Reveal>
         </div>

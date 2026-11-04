@@ -11,11 +11,13 @@ import {
   Info as InfoIcon,
   type LucideIcon,
 } from "lucide-react";
+import { safeHrefOr } from "@/components/content/safe-link";
 import type { LandingContent } from "@/lib/content/landing";
 
 const ICONS: LucideIcon[] = [CalendarDays, MapPin, Clock, GraduationCap, Mail];
 
 export function ImportantInfo({ info }: { info: LandingContent["info"] }) {
+  if (!info.visible) return null;
   return (
     <section className="py-20 md:py-28">
       <Container>
@@ -46,6 +48,7 @@ export function ImportantInfo({ info }: { info: LandingContent["info"] }) {
 }
 
 export function FinalCta({ finalCta }: { finalCta: LandingContent["finalCta"] }) {
+  if (!finalCta.visible) return null;
   return (
     <section className="py-20 md:py-28">
       <Container>
@@ -59,12 +62,21 @@ export function FinalCta({ finalCta }: { finalCta: LandingContent["finalCta"] })
               </h2>
               <p className="mx-auto mt-5 max-w-md text-muted">{finalCta.description}</p>
               <div className="mt-9 flex flex-wrap justify-center gap-3">
-                <ButtonLink href="/signup" size="lg" withArrow>
-                  {finalCta.ctaPrimary}
-                </ButtonLink>
-                <ButtonLink href="/events" size="lg" variant="outline" withArrow>
-                  {finalCta.ctaSecondary}
-                </ButtonLink>
+                {finalCta.ctaPrimary && (
+                  <ButtonLink href={safeHrefOr(finalCta.ctaPrimaryHref, "/signup")} size="lg" withArrow>
+                    {finalCta.ctaPrimary}
+                  </ButtonLink>
+                )}
+                {finalCta.ctaSecondary && (
+                  <ButtonLink
+                    href={safeHrefOr(finalCta.ctaSecondaryHref, "/events")}
+                    size="lg"
+                    variant="outline"
+                    withArrow
+                  >
+                    {finalCta.ctaSecondary}
+                  </ButtonLink>
+                )}
               </div>
             </div>
           </div>

@@ -4,6 +4,7 @@ import { Reveal } from "@/components/motion/reveal";
 import { ButtonLink } from "@/components/ui/button";
 import { EventCard } from "@/components/events/event-card";
 import type { EventRow } from "@/types/database";
+import { safeHrefOr } from "@/components/content/safe-link";
 import type { LandingContent } from "@/lib/content/landing";
 
 export function Featured({
@@ -15,7 +16,7 @@ export function Featured({
   registeredIds: Set<string>;
   featured: LandingContent["featured"];
 }) {
-  if (events.length === 0) return null;
+  if (!featured.visible || events.length === 0) return null;
   return (
     <section className="py-20 md:py-28">
       <Container>
@@ -27,11 +28,13 @@ export function Featured({
               title={featured.title}
             />
           </Reveal>
-          <Reveal delay={0.1}>
-            <ButtonLink href="/events" variant="outline" withArrow>
-              All events
-            </ButtonLink>
-          </Reveal>
+          {featured.ctaLabel && (
+            <Reveal delay={0.1}>
+              <ButtonLink href={safeHrefOr(featured.ctaHref, "/events")} variant="outline" withArrow>
+                {featured.ctaLabel}
+              </ButtonLink>
+            </Reveal>
+          )}
         </div>
 
         <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">

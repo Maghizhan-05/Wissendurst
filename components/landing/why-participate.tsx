@@ -22,6 +22,7 @@ const ICONS: LucideIcon[] = [
 ];
 
 export function WhyParticipate({ why }: { why: LandingContent["why"] }) {
+  if (!why.visible) return null;
   return (
     <section className="border-y border-border bg-surface/40 py-20 md:py-28">
       <Container>

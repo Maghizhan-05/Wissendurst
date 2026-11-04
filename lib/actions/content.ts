@@ -1,112 +1,104 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
+import type { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { requireScope } from "@/lib/auth";
-
-const titledBody = z.object({
-  title: z.string().trim().max(120),
-  body: z.string().trim().max(400),
-});
-const labelValue = z.object({
-  label: z.string().trim().max(120),
-  value: z.string().trim().max(240),
-});
-
-const landingSchema = z.object({
-  hero: z.object({
-    eyebrow: z.string().trim().max(120),
-    titleLine1: z.string().trim().max(60),
-    titleAccent: z.string().trim().max(20),
-    taglineLine1: z.string().trim().max(80),
-    taglineLine2: z.string().trim().max(80),
-    description: z.string().trim().max(400),
-    date: z.string().trim().max(80),
-    venue: z.string().trim().max(120),
-    ctaPrimary: z.string().trim().max(40),
-    ctaSecondary: z.string().trim().max(40),
-  }),
-  intro: z.object({
-    index: z.string().trim().max(4),
-    eyebrow: z.string().trim().max(60),
-    title: z.string().trim().max(160),
-    paragraphs: z.array(z.string().trim().max(1000)).max(6),
-  }),
-  categories: z.object({
-    index: z.string().trim().max(4),
-    eyebrow: z.string().trim().max(60),
-    title: z.string().trim().max(160),
-    description: z.string().trim().max(400),
-  }),
-  featured: z.object({
-    index: z.string().trim().max(4),
-    eyebrow: z.string().trim().max(60),
-    title: z.string().trim().max(160),
-  }),
-  why: z.object({
-    index: z.string().trim().max(4),
-    eyebrow: z.string().trim().max(60),
-    title: z.string().trim().max(160),
-    points: z.array(titledBody).max(9),
-  }),
-  journey: z.object({
-    index: z.string().trim().max(4),
-    eyebrow: z.string().trim().max(60),
-    title: z.string().trim().max(160),
-    steps: z.array(titledBody).max(9),
-  }),
-  info: z.object({
-    index: z.string().trim().max(4),
-    eyebrow: z.string().trim().max(60),
-    title: z.string().trim().max(160),
-    items: z.array(labelValue).max(10),
-  }),
-  finalCta: z.object({
-    title: z.string().trim().max(200),
-    description: z.string().trim().max(400),
-    ctaPrimary: z.string().trim().max(40),
-    ctaSecondary: z.string().trim().max(40),
-  }),
-  footer: z.object({
-    tagline: z.string().trim().max(160),
-    contactEmail: z.string().trim().max(160),
-    dates: z.string().trim().max(80),
-  }),
-});
+import { landingSchema } from "@/lib/content/landing";
+import { aboutSchema } from "@/lib/content/about";
+import { appearanceSchema } from "@/lib/content/appearance";
 
 export type ContentState =
   | { ok: false; error: string }
   | { ok: true; message: string }
   | null;
 
+function readJson(formData: FormData, field: string): unknown {
+  try {
+    return JSON.parse(String(formData.get(field) ?? ""));
+  } catch {
+    return undefined;
+  }
+}
+
+/** First validation problem as a readable message ("categories › boxes › 2 › href: …"). */
+function firstIssue(error: z.ZodError): string {
+  const issue = error.issues[0];
+  if (!issue) return "Some fields are invalid.";
+  const where = issue.path
+    .map((p) => (typeof p === "number" ? `#${p + 1}` : String(p)))
+    .join(" › ");
+  return where ? `${where}: ${issue.message}` : issue.message;
+}
+
+async function saveColumn(
+  column: "content" | "about" | "appearance",
+  value: unknown,
+): Promise<string | null> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("site_settings")
+    .upsert({ id: 1, [column]: value }, { onConflict: "id" });
+  if (error) {
+    console.error(`site_settings ${column} save failed:`, error);
+    return "Could not save changes.";
+  }
+  return null;
+}
+
 export async function updateLandingContent(
   _prev: ContentState,
   formData: FormData,
 ): Promise<ContentState> {
   await requireScope("content");
+  const raw = readJson(formData, "content");
+  if (raw === undefined) return { ok: false, error: "Could not read the form data." };
 
-  const raw = String(formData.get("content") ?? "");
-  let parsedJson: unknown;
-  try {
-    parsedJson = JSON.parse(raw);
-  } catch {
-    return { ok: false, error: "Could not read the form data." };
-  }
+  const result = landingSchema.safeParse(raw);
+  if (!result.success) return { ok: false, error: firstIssue(result.error) };
 
-  const result = landingSchema.safeParse(parsedJson);
-  if (!result.success) {
-    return { ok: false, error: "Some fields are invalid or too long." };
-  }
+  const err = await saveColumn("content", result.data);
+  if (err) return { ok: false, error: err };
 
-  const supabase = await createClient();
-  const { error } = await supabase
-    .from("site_settings")
-    .upsert({ id: 1, content: result.data }, { onConflict: "id" });
+  // The footer is part of every public page.
+  revalidatePath("/", "layout");
+  return { ok: true, message: "Home page updated." };
+}
 
-  if (error) return { ok: false, error: "Could not save changes." };
+export async function updateAboutContent(
+  _prev: ContentState,
+  formData: FormData,
+): Promise<ContentState> {
+  await requireScope("content");
+  const raw = readJson(formData, "about");
+  if (raw === undefined) return { ok: false, error: "Could not read the form data." };
 
-  revalidatePath("/");
-  revalidatePath("/admin/content");
-  return { ok: true, message: "Landing page updated." };
+  const result = aboutSchema.safeParse(raw);
+  if (!result.success) return { ok: false, error: firstIssue(result.error) };
+
+  const err = await saveColumn("about", result.data);
+  if (err) return { ok: false, error: err };
+
+  revalidatePath("/about");
+  revalidatePath("/admin/content/about");
+  return { ok: true, message: "About page updated." };
+}
+
+export async function updateAppearance(
+  _prev: ContentState,
+  formData: FormData,
+): Promise<ContentState> {
+  await requireScope("content");
+  const raw = readJson(formData, "appearance");
+  if (raw === undefined) return { ok: false, error: "Could not read the form data." };
+
+  const result = appearanceSchema.safeParse(raw);
+  if (!result.success) return { ok: false, error: firstIssue(result.error) };
+
+  const err = await saveColumn("appearance", result.data);
+  if (err) return { ok: false, error: err };
+
+  // Colours apply to every page (public, participant and admin).
+  revalidatePath("/", "layout");
+  return { ok: true, message: "Appearance updated." };
 }

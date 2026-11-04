@@ -43,7 +43,7 @@ export function AdminSidebar({
     { href: "/admin/payments", label: "Payments", icon: BadgeIndianRupee, scope: "payments" },
     { href: "/admin/collections", label: "Collections", icon: TrendingUp, scope: "payments" },
     { href: "/admin/users", label: "Users", icon: Users, scope: "signups" },
-    { href: "/admin/content", label: "Landing page", icon: LayoutTemplate, scope: "content" },
+    { href: "/admin/content", label: "Site content", icon: LayoutTemplate, scope: "content" },
   ];
 
   const visible = links.filter(

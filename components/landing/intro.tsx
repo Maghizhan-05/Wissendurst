@@ -5,6 +5,7 @@ import { EcgDivider } from "@/components/ui/misc";
 import type { LandingContent } from "@/lib/content/landing";
 
 export function Intro({ intro }: { intro: LandingContent["intro"] }) {
+  if (!intro.visible) return null;
   return (
     <section className="py-20 md:py-28">
       <Container>

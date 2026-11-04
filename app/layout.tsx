@@ -4,6 +4,8 @@ import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { SITE } from "@/lib/constants";
 import { siteUrl } from "@/lib/utils";
+import { getAppearance } from "@/lib/data/settings";
+import { appearanceCss } from "@/lib/content/appearance";
 import "./globals.css";
 
 const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
@@ -45,13 +47,21 @@ export const metadata: Metadata = {
   robots: { index: true, follow: true },
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // Admin colour overrides, validated to #rrggbb tokens only, emitted in <head>
+  // so the first paint already uses them (no theme flash).
+  const themeCss = appearanceCss(await getAppearance());
   return (
     <html
       lang="en"
       suppressHydrationWarning
       className={`${inter.variable} ${fraunces.variable} ${mono.variable} h-full`}
     >
+      {themeCss && (
+        <head>
+          <style id="site-appearance" dangerouslySetInnerHTML={{ __html: themeCss }} />
+        </head>
+      )}
       <body className="min-h-full flex flex-col antialiased">
         <ThemeProvider
           attribute="class"

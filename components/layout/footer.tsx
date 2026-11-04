@@ -16,14 +16,17 @@ export function Footer({
             {SITE.name}
           </p>
           <p className="mt-3 max-w-sm text-sm text-muted">
-            {footer.tagline}. A medical symposium of workshops, debates, and
-            research presentations — built for the clinically curious.
+            {[footer.tagline, footer.description]
+              .filter(Boolean)
+              .map((t) => t.replace(/[.\s]+$/, ""))
+              .join(". ")}
+            {footer.tagline || footer.description ? "." : ""}
           </p>
         </div>
 
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-muted">
-            Explore
+            {footer.exploreHeading}
           </p>
           <ul className="mt-4 space-y-2 text-sm">
             <li><Link href="/events" className="text-foreground hover:text-brand">Events</Link></li>
@@ -35,12 +38,16 @@ export function Footer({
 
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-muted">
-            Contact
+            {footer.contactHeading}
           </p>
           <ul className="mt-4 space-y-2 text-sm text-muted">
-            <li>Organizing Committee</li>
-            <li><a href={`mailto:${footer.contactEmail}`} className="hover:text-brand">{footer.contactEmail}</a></li>
-            <li>{footer.dates}</li>
+            {footer.contactName && <li>{footer.contactName}</li>}
+            {/^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']+$/.test(footer.contactEmail) ? (
+              <li><a href={`mailto:${footer.contactEmail}`} className="hover:text-brand">{footer.contactEmail}</a></li>
+            ) : (
+              footer.contactEmail && <li>{footer.contactEmail}</li>
+            )}
+            {footer.dates && <li>{footer.dates}</li>}
           </ul>
         </div>
       </Container>
@@ -48,7 +55,7 @@ export function Footer({
       <div className="border-t border-border">
         <Container className="flex flex-col items-center justify-between gap-2 py-6 text-xs text-muted sm:flex-row">
           <p>© {new Date().getFullYear()} {SITE.name}. All rights reserved.</p>
-          <p>Built for the clinically curious.</p>
+          {footer.bottomNote && <p>{footer.bottomNote}</p>}
         </Container>
       </div>
     </footer>
