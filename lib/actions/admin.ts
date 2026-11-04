@@ -514,7 +514,14 @@ export async function setApproval(formData: FormData): Promise<AdminActionState>
     p_user_id: userId,
     p_status: status,
   });
-  if (error) return { ok: false, error: "Could not update approval." };
+  if (error) {
+    const msg = error.message ?? "";
+    if (msg.includes("PARTICIPANT_ID_SPACE_EXHAUSTED"))
+      return { ok: false, error: "No participant IDs are left (W27/E/9999 reached)." };
+    if (msg.includes("FORBIDDEN"))
+      return { ok: false, error: "You don't have permission to approve signups." };
+    return { ok: false, error: "Could not update approval." };
+  }
 
   if (status === "approved") {
     try {

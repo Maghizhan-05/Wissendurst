@@ -105,6 +105,32 @@ export interface EventOfferRow {
   updated_at: string;
 }
 
+/** Participant-ID namespaces: E (standard) and GR (General Registration). */
+export type ParticipantIdNamespace = "E" | "GR";
+
+/** Active participant id (0021). Read-only to clients; signups admins may read. */
+export interface ParticipantIdAllocationRow {
+  namespace: ParticipantIdNamespace;
+  number: number;
+  participant_id: string; // W27/E/0001, W27/GR/0001
+  profile_id: string | null; // null once the owning account was deleted
+  allocated_at: string;
+  allocated_by: string | null;
+}
+
+/** Append-only participant-id log (0021). */
+export interface ParticipantIdHistoryRow {
+  id: number;
+  namespace: ParticipantIdNamespace;
+  number: number;
+  participant_id: string;
+  profile_id: string | null;
+  action: "assigned" | "released" | "backfilled";
+  actor: string | null;
+  reason: string | null;
+  created_at: string;
+}
+
 export interface PaymentEventRow {
   id: string;
   registration_id: string;
