@@ -158,13 +158,13 @@ export interface GeneralRegistrationEventRow {
 }
 
 /** Participant-ID namespaces: E (standard) and GR (General Registration). */
-export type ParticipantIdNamespace = "E" | "GR";
+export type ParticipantIdNamespace = "E" | "GR" | "ADMIN" | "SUPADMIN";
 
 /** Active participant id (0021). Read-only to clients; signups admins may read. */
 export interface ParticipantIdAllocationRow {
   namespace: ParticipantIdNamespace;
   number: number;
-  participant_id: string; // W27/E/0001, W27/GR/0001
+  participant_id: string; // W27/E/0001, W27/GR/0001, admin/01, supadmin/01
   profile_id: string | null; // null once the owning account was deleted
   allocated_at: string;
   allocated_by: string | null;

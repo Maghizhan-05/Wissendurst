@@ -517,7 +517,7 @@ export async function setApproval(formData: FormData): Promise<AdminActionState>
   if (error) {
     const msg = error.message ?? "";
     if (msg.includes("PARTICIPANT_ID_SPACE_EXHAUSTED"))
-      return { ok: false, error: "No participant IDs are left (W27/E/9999 reached)." };
+      return { ok: false, error: "No IDs are left in this participant range. Nothing was changed." };
     if (msg.includes("FORBIDDEN"))
       return { ok: false, error: "You don't have permission to approve signups." };
     return { ok: false, error: "Could not update approval." };
@@ -567,11 +567,17 @@ export async function setAdminAccess(formData: FormData): Promise<AdminActionSta
   if (error) {
     if (error.message.includes("CANNOT_DEMOTE_SELF"))
       return { ok: false, error: "You can't remove your own super-admin access." };
+    if (error.message.includes("PARTICIPANT_ID_SPACE_EXHAUSTED"))
+      return {
+        ok: false,
+        error: "No staff IDs are left in that range (admin/99 or supadmin/99 reached). Nothing was changed.",
+      };
     return { ok: false, error: "Could not update admin access." };
   }
   revalidatePath(`/admin/users/${userId}`);
   revalidatePath("/admin/users");
-  return { ok: true, message: "Admin access updated." };
+  revalidatePath("/", "layout"); // the participant ID shown in navigation changed
+  return { ok: true, message: "Admin access and participant ID updated." };
 }
 
 /** Short-lived signed URL for a private payment screenshot (payments scope). */

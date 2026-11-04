@@ -9,6 +9,7 @@ grant execute on all functions in schema public to anon, authenticated;
 \ir ../migrations/0021_participant_id_allocator.sql
 \ir ../migrations/0022_profile_update_lockdown.sql
 \ir ../migrations/0023_general_registration.sql
+\ir ../migrations/0024_staff_participant_ids.sql   -- keep the current allocator/approval definitions
 
 create or replace function pg_temp.expect_error(p_sql text, p_needle text) returns text
 language plpgsql as $$

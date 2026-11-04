@@ -102,6 +102,10 @@ export default async function AdminUserPage({
           </h2>
           <p className="mt-1 text-sm text-muted">
             Grant staff access and choose which areas this person can manage.
+            Changing the role also changes the participant ID: admins get
+            admin/##, super admins supadmin/##, and participants return to
+            W27/E/#### (or W27/GR/#### with verified General Registration). The
+            previous number is released for reuse.
           </p>
           <div className="mt-4 max-w-md">
             <AdminAccessForm
