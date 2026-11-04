@@ -374,7 +374,25 @@ export async function setPaymentStatus(
     p_status: status,
     p_note: note,
   });
-  if (error) return { ok: false, error: "Could not update payment status." };
+  if (error) {
+    console.error("admin_set_payment_status failed:", error);
+    const msg = error.message ?? "";
+    if (msg.includes("EVENT_FULL_AT_VERIFICATION"))
+      return {
+        ok: false,
+        error:
+          "Can't verify: this registration's seat hold has lapsed and the event is now full. Free a seat (or raise the capacity) and verify again.",
+      };
+    if (msg.includes("EVENT_FULL_AT_REVIEW"))
+      return {
+        ok: false,
+        error:
+          "Can't change this status: it would hold a seat again, but the event is full.",
+      };
+    if (msg.includes("FORBIDDEN"))
+      return { ok: false, error: "You don't have permission to review payments." };
+    return { ok: false, error: "Could not update payment status." };
+  }
 
   revalidatePath("/admin/payments");
   revalidatePath(`/admin/payments/${registrationId}`);

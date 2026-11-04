@@ -2,7 +2,8 @@
 # Database behaviour tests for supabase/migrations.
 #
 # Spins up a throwaway local PostgreSQL cluster, and for every
-# supabase/tests/*.test.sql file: creates a fresh database, loads a minimal
+# supabase/tests/*.test.sql (and *.test.sh, given $PSQL_CMD) file: creates a
+# fresh database, loads a minimal
 # Supabase shim (auth/storage schemas, anon/authenticated/service_role),
 # applies every migration in order, re-applies the latest two migrations to
 # prove they are re-runnable, then runs the test file. Never touches a remote
@@ -34,26 +35,41 @@ PSQL=("${BIN}psql" -h "$WORK" -p "$PORT" -U postgres -X -q -v ON_ERROR_STOP=1)
 MIGS=()
 while IFS= read -r f; do MIGS+=("$f"); done < <(ls "$MIGRATIONS"/*.sql | sort)
 
-failed=0
-for test in "$TESTS"/*.test.sql; do
-  name="$(basename "$test")"
+setup_db() { # $1 = test name
   "${PSQL[@]}" -d postgres -c "drop database if exists wd_test" \
     -c "create database wd_test" >/dev/null 2>&1
   "${PSQL[@]}" -d wd_test -f "$TESTS/supabase_shim.sql" >/dev/null 2>&1
   for m in "${MIGS[@]}"; do
     "${PSQL[@]}" -d wd_test -f "$m" >/dev/null 2>"$WORK/err" || {
-      echo "FAIL [$name] applying $(basename "$m")"; cat "$WORK/err"; exit 1; }
+      echo "FAIL [$1] applying $(basename "$m")"; cat "$WORK/err"; exit 1; }
   done
+  # Re-apply the newest two migrations (in order) to prove they re-run cleanly.
   for m in "${MIGS[@]: -2}"; do
     "${PSQL[@]}" -d wd_test -f "$m" >/dev/null 2>"$WORK/err" || {
-      echo "FAIL [$name] re-applying $(basename "$m")"; cat "$WORK/err"; exit 1; }
+      echo "FAIL [$1] re-applying $(basename "$m")"; cat "$WORK/err"; exit 1; }
   done
-  if out="$("${PSQL[@]}" -d wd_test -t -A -f "$test" 2>&1)"; then
-    echo "ok   [$name] $(grep -c '^PASS' <<<"$out") assertions passed"
+}
+
+report() { # $1 = name, $2 = exit status, $3 = output
+  if [ "$2" -eq 0 ]; then
+    echo "ok   [$1] $(grep -c '^PASS' <<<"$3") assertions passed"
   else
     failed=1
-    echo "FAIL [$name] after $(grep -c '^PASS' <<<"$out") assertions"
-    grep -E "ERROR|FAIL|WRONG" <<<"$out" | head -5
+    echo "FAIL [$1] after $(grep -c '^PASS' <<<"$3") assertions"
+    grep -E "ERROR|FAIL|WRONG" <<<"$3" | head -5
   fi
+}
+
+failed=0
+for test in "$TESTS"/*.test.sql "$TESTS"/*.test.sh; do
+  [ -e "$test" ] || continue
+  name="$(basename "$test")"
+  setup_db "$name"
+  status=0
+  case "$test" in
+    *.sql) out="$("${PSQL[@]}" -d wd_test -t -A -f "$test" 2>&1)" || status=$? ;;
+    *.sh)  out="$(PSQL_CMD="${PSQL[*]} -d wd_test" bash "$test" 2>&1)" || status=$? ;;
+  esac
+  report "$name" "$status" "$out"
 done
 exit $failed
