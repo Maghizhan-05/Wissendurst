@@ -4,7 +4,7 @@ import { useActionState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useEffect } from "react";
-import { Clock, Lock, Users } from "lucide-react";
+import { Clock, Lock, Ticket, Users } from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { registerForEvent, type ActionResult } from "@/lib/actions/registration";
 import { TeamRegister } from "@/components/events/team-register";
@@ -62,7 +62,13 @@ function RegisterCtaBody({
   teamMax = 4,
   teamFee = 0,
   head = null,
+  generalRegistrationCovered = false,
+  generallyRegistered = false,
 }: {
+  /** Event is included in General Registration (0023). */
+  generalRegistrationCovered?: boolean;
+  /** The signed-in participant's General Registration is verified. */
+  generallyRegistered?: boolean;
   eventId: string;
   slug: string;
   isLoggedIn: boolean;
@@ -171,6 +177,33 @@ function RegisterCtaBody({
     );
   }
 
+  // Covered events are never paid individually: participants without a
+  // verified General Registration are sent there instead of the payment path.
+  if (generalRegistrationCovered && !generallyRegistered) {
+    return (
+      <section
+        aria-labelledby={`gr-note-${eventId}`}
+        className="flex flex-col gap-3 rounded-2xl border border-brand/30 bg-brand/5 p-5"
+      >
+        <h2 id={`gr-note-${eventId}`} className="flex items-center gap-2 font-medium text-foreground">
+          <Ticket className="size-4 text-brand" aria-hidden /> Included in General Registration
+        </h2>
+        <p className="text-sm text-muted">
+          This event isn&rsquo;t paid for individually. Complete General Registration once
+          {teamEnabled ? " (every team member needs it)" : ""}, then come back and enrol here for free.
+        </p>
+        <ButtonLink
+          href={isLoggedIn ? "/general-registration" : "/login?next=/general-registration"}
+          size="lg"
+          withArrow
+          className="self-start"
+        >
+          {isLoggedIn ? "Go to General Registration" : "Login for General Registration"}
+        </ButtonLink>
+      </section>
+    );
+  }
+
   if (!isLoggedIn) {
     return (
       <div className="flex flex-col gap-3 sm:flex-row">
@@ -187,8 +220,16 @@ function RegisterCtaBody({
     );
   }
 
+  const grNote = generalRegistrationCovered ? (
+    <p className="inline-flex items-center gap-2 text-sm text-success">
+      <Ticket className="size-4" aria-hidden /> Included in your General Registration — enrolment is free.
+    </p>
+  ) : null;
+
   if (teamEnabled && head) {
     return (
+      <div className="flex flex-col gap-3">
+      {grNote}
       <TeamRegister
         eventId={eventId}
         slug={slug}
@@ -200,6 +241,7 @@ function RegisterCtaBody({
         teamMax={teamMax}
         head={head}
       />
+      </div>
     );
   }
 
@@ -210,7 +252,8 @@ function RegisterCtaBody({
     <form action={formAction} className="flex flex-col gap-3">
       <input type="hidden" name="event_id" value={eventId} />
       <input type="hidden" name="slug" value={slug} />
-      {discounted && (
+      {grNote}
+      {discounted && !generalRegistrationCovered && (
         <div className="inline-flex flex-wrap items-center gap-2.5 rounded-xl border border-success/30 bg-success/10 px-4 py-2.5 text-sm">
           <span className="text-muted line-through">{formatINR(fee)}</span>
           <span className="font-display text-lg font-semibold text-foreground">
@@ -222,7 +265,9 @@ function RegisterCtaBody({
         </div>
       )}
       <Button type="submit" size="lg" loading={pending} withArrow className="self-start">
-        {fee === 0
+        {generalRegistrationCovered
+          ? "Enrol — included"
+          : fee === 0
           ? "Register — Free"
           : discounted
             ? `Register — pay ${formatINR(finalFee)}`

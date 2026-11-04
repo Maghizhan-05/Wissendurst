@@ -35,6 +35,7 @@ export type PaymentBlock =
   | "cancelled"
   | "paid"
   | "expired"
+  | "general_registration"
   | null;
 
 /** Why the participant can't submit a payment right now (null = allowed). */
@@ -45,12 +46,15 @@ export function paymentBlockReason(
   >,
   state: Pick<RegistrationState, "expired_intent"> | null,
   eventArchived: boolean,
+  /** Event is included in General Registration (0023): never paid individually. */
+  generalRegistrationCovered = false,
 ): PaymentBlock {
   if (reg.team_id && !reg.is_team_head) return "team_member";
   if (eventArchived) return "archived";
   if (reg.registration_status === "cancelled") return "cancelled";
   if (reg.registration_status === "confirmed" || reg.payment_status === "verified")
     return "paid";
+  if (generalRegistrationCovered) return "general_registration";
   if (state?.expired_intent) return "expired";
   return null;
 }

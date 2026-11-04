@@ -16,6 +16,8 @@ const RPC_ERRORS: Record<string, string> = {
   HAS_SUBEVENTS: "Pick one of the sub-events to register for.",
   NOT_LIVE: "Registration for this event hasn't opened yet — coming soon.",
   REGISTRATION_CLOSED: "Registration for this event is closed.",
+  GENERAL_REGISTRATION_REQUIRED:
+    "This event is included in General Registration. Complete General Registration first (every team member needs it too), then enrol here for free.",
   ALREADY_REGISTERED: "You're already registered for this event.",
   EVENT_FULL: "This event has reached capacity.",
   NOT_TEAM_EVENT: "This event isn't a team event.",

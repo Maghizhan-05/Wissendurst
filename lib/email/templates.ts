@@ -152,3 +152,59 @@ export function paymentConfirmedEmail(
     ),
   };
 }
+
+/* ── General Registration (0023) ───────────────────────────────────────── */
+
+function esc(v: string): string {
+  return v.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+}
+
+export function generalRegistrationSubmittedEmail(
+  name: string,
+  amountPaise: number,
+  transactionId: string | null,
+) {
+  return {
+    subject: "Your Wissendurst'27 General Registration payment is under review",
+    html: shell(
+      `Payment received, ${esc(name || "there")}`,
+      `<p style="line-height:1.6;">We've received your General Registration payment of <strong>${formatINR(amountPaise)}</strong>${
+        transactionId ? ` (UTR <span style="font-family:monospace;">${esc(transactionId)}</span>)` : ""
+      }. An organizer will verify it shortly.</p>
+       <p style="line-height:1.6;color:#627775;">Once verified you'll receive a new General Registration participant ID, and you can enrol in every included event at no extra cost.</p>`,
+      { label: "View status", href: siteUrl("/general-registration") },
+    ),
+  };
+}
+
+export function generalRegistrationVerifiedEmail(
+  name: string,
+  previousId: string | null,
+  newId: string,
+) {
+  return {
+    subject: "General Registration confirmed — your new Wissendurst'27 ID ✅",
+    html: shell(
+      `You're generally registered, ${esc(name || "there")}! 🎉`,
+      `<p style="line-height:1.6;">Your General Registration payment is verified. Your participant ID is now ${pid(esc(newId))}${
+        previousId ? ` (it replaces ${esc(previousId)}, which is no longer valid)` : ""
+      }.</p>
+       <p style="line-height:1.6;">Next step: open each included event and choose <strong>Enroll</strong> — enrolment is free for you, but seats are limited and not reserved automatically.</p>`,
+      { label: "Choose my events", href: siteUrl("/general-registration") },
+    ),
+  };
+}
+
+export function generalRegistrationRejectedEmail(name: string, note: string | null) {
+  return {
+    subject: "Update on your Wissendurst'27 General Registration payment",
+    html: shell(
+      `We couldn't verify your payment`,
+      `<p style="line-height:1.6;">Hi ${esc(name || "there")}, an organizer could not verify your General Registration payment.${
+        note ? ` Reason: <em>${esc(note)}</em>.` : ""
+      }</p>
+       <p style="line-height:1.6;color:#627775;">Your participant ID is unchanged. You can upload the correct screenshot and UTR again.</p>`,
+      { label: "Resubmit payment", href: siteUrl("/general-registration") },
+    ),
+  };
+}

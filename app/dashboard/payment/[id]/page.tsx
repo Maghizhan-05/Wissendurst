@@ -31,6 +31,10 @@ const BLOCK_COPY: Record<Exclude<PaymentBlock, null | "paid">, { title: string; 
     title: "Registration cancelled",
     body: "This registration was cancelled. Register for the event again if you'd like to take part.",
   },
+  general_registration: {
+    title: "Included in General Registration",
+    body: "This event is covered by General Registration, so it isn't paid individually. Complete General Registration once, then enrol in this event for free.",
+  },
   expired: {
     title: "Your seat hold expired",
     body: `Unpaid registrations hold a seat for ${HOLD_HOURS} hours. Register again to renew your hold — the current price applies.`,
@@ -53,6 +57,7 @@ export default async function PaymentPage({ params }: PageProps<"/dashboard/paym
     registration,
     registration.state,
     Boolean(event.archived_at),
+    event.general_registration_covered,
   );
   const holdUntil = timedHoldDeadline(registration.state);
   const underReview = registration.state?.effective_payment_status === "under_review";
@@ -96,6 +101,14 @@ export default async function PaymentPage({ params }: PageProps<"/dashboard/paym
           </h2>
           <p className="mt-2 text-sm text-muted">{BLOCK_COPY[block].body}</p>
           <div className="mt-4 flex flex-wrap gap-3 text-sm">
+            {block === "general_registration" && (
+              <Link
+                href="/general-registration"
+                className="inline-flex items-center rounded-full bg-brand px-4 py-2 font-medium text-brand-contrast"
+              >
+                Go to General Registration
+              </Link>
+            )}
             {block === "expired" && (
               <Link
                 href={`/events/${event.slug}`}

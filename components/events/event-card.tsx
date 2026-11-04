@@ -22,7 +22,8 @@ export function EventCard({
   discountPaise?: number;
 }) {
   const isContainer = subEventCount > 0;
-  const discounted = !isContainer && discountPaise > 0 && event.registration_fee > 0;
+  const covered = !isContainer && Boolean(event.general_registration_covered);
+  const discounted = !covered && !isContainer && discountPaise > 0 && event.registration_fee > 0;
   const finalFee = Math.max(event.registration_fee - discountPaise, 0);
   return (
     <Link
@@ -51,6 +52,7 @@ export function EventCard({
           {discounted && (
             <Badge tone="success">Save {formatINR(discountPaise)}</Badge>
           )}
+          {covered && <Badge tone="brand">General Registration</Badge>}
         </div>
         {!event.is_live ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/60 text-center backdrop-blur-[1px]">
@@ -93,6 +95,10 @@ export function EventCard({
             <span className="inline-flex items-center gap-1.5 text-sm font-medium text-muted">
               <Layers className="size-3.5" /> {subEventCount} sub-event
               {subEventCount === 1 ? "" : "s"}
+            </span>
+          ) : covered ? (
+            <span className="text-sm font-medium text-muted">
+              Included in General Registration
             </span>
           ) : discounted ? (
             <span className="flex items-baseline gap-1.5">

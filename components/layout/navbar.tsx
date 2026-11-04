@@ -3,14 +3,19 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { Menu, X, LayoutDashboard, Shield } from "lucide-react";
+import { Menu, X, LayoutDashboard, Shield, Ticket } from "lucide-react";
 import { ThemeToggle } from "./theme-toggle";
 import { ButtonLink } from "@/components/ui/button";
 import { Container } from "@/components/ui/container";
 import { cn } from "@/lib/utils";
 import { SITE } from "@/lib/constants";
 
-type NavUser = { participantId: string; isAdmin: boolean } | null;
+type NavUser = {
+  participantId: string;
+  isAdmin: boolean;
+  /** Approved participant still on a standard E id (hidden after GR verification). */
+  showGeneralRegistration?: boolean;
+} | null;
 
 const LINKS = [
   { href: "/events", label: "Events" },
@@ -71,6 +76,11 @@ export function Navbar({ user }: { user: NavUser }) {
               <Shield className="size-4" /> Admin
             </ButtonLink>
           )}
+          {user?.showGeneralRegistration && (
+            <ButtonLink href="/general-registration" variant="outline" size="sm">
+              <Ticket className="size-4" aria-hidden /> General Registration
+            </ButtonLink>
+          )}
           {user ? (
             <ButtonLink href="/dashboard" variant="secondary" size="sm">
               <LayoutDashboard className="size-4" /> {user.participantId}
@@ -117,6 +127,11 @@ export function Navbar({ user }: { user: NavUser }) {
               {user?.isAdmin && (
                 <ButtonLink href="/admin" variant="secondary" className="w-full">
                   <Shield className="size-4" /> Admin
+                </ButtonLink>
+              )}
+              {user?.showGeneralRegistration && (
+                <ButtonLink href="/general-registration" variant="outline" className="w-full">
+                  <Ticket className="size-4" aria-hidden /> General Registration
                 </ButtonLink>
               )}
               {user ? (

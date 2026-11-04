@@ -32,12 +32,20 @@ export async function updateProfile(
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Not signed in." };
 
-  const { error } = await supabase
-    .from("profiles")
-    .update(parsed.data)
-    .eq("id", user.id);
+  // Narrow RPC: participants can only change these five fields (0022).
+  const { error } = await supabase.rpc("update_my_profile", {
+    p_full_name: parsed.data.full_name,
+    p_phone: parsed.data.phone,
+    p_college: parsed.data.college,
+    p_course: parsed.data.course,
+    p_year: parsed.data.year,
+  });
 
-  if (error) return { ok: false, error: "Could not save changes." };
+  if (error) {
+    if (error.message?.includes("INVALID_PROFILE"))
+      return { ok: false, error: "Please check your details." };
+    return { ok: false, error: "Could not save changes." };
+  }
 
   revalidatePath("/dashboard/profile");
   revalidatePath("/dashboard");
@@ -52,11 +60,13 @@ export async function saveProfilePhoto(publicUrl: string): Promise<ProfileState>
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Not signed in." };
 
-  const { error } = await supabase
-    .from("profiles")
-    .update({ profile_photo: publicUrl })
-    .eq("id", user.id);
-  if (error) return { ok: false, error: "Could not update photo." };
+  // The RPC only accepts a URL inside the caller's own profile-images folder.
+  const { error } = await supabase.rpc("set_my_profile_photo", { p_url: publicUrl });
+  if (error) {
+    if (error.message?.includes("INVALID_PHOTO_URL"))
+      return { ok: false, error: "That photo link isn't allowed." };
+    return { ok: false, error: "Could not update photo." };
+  }
 
   revalidatePath("/dashboard/profile");
   revalidatePath("/dashboard");

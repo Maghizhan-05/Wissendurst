@@ -11,6 +11,10 @@ import {
   analyzeScreenshot,
   confirmPayment,
 } from "@/lib/actions/payment";
+import {
+  analyzeGeneralScreenshot,
+  confirmGeneralPayment,
+} from "@/lib/actions/general-registration";
 import type { PaymentStatus } from "@/lib/constants";
 
 type Step = "upload" | "confirm" | "done";
@@ -18,10 +22,16 @@ type Step = "upload" | "confirm" | "done";
 export function PaymentFlow({
   registrationId,
   initialStatus,
+  kind = "event",
 }: {
+  /** Event registration id (ignored for General Registration). */
   registrationId: string;
   initialStatus: PaymentStatus;
+  /** "general" pays the caller's General Registration intent. */
+  kind?: "event" | "general";
 }) {
+  const general = kind === "general";
+  const backHref = general ? "/general-registration" : "/dashboard/registrations";
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [pending, startTransition] = useTransition();
@@ -50,7 +60,7 @@ export function PaymentFlow({
     fd.append("file", file);
 
     startTransition(async () => {
-      const res = await analyzeScreenshot(fd);
+      const res = general ? await analyzeGeneralScreenshot(fd) : await analyzeScreenshot(fd);
       if (!res.ok) {
         toast.error(res.error);
         return;
@@ -74,7 +84,7 @@ export function PaymentFlow({
     fd.append("transaction_id", ref.trim());
 
     startTransition(async () => {
-      const res = await confirmPayment(fd);
+      const res = general ? await confirmGeneralPayment(fd) : await confirmPayment(fd);
       if (!res.ok) {
         toast.error(res.error);
         return;
@@ -97,8 +107,12 @@ export function PaymentFlow({
         tone="success"
         icon={<ShieldCheck className="size-6" />}
         title="Payment verified"
-        body="Your spot is confirmed. See you at the event!"
-        cta={{ label: "View my events", onClick: () => router.push("/dashboard/registrations") }}
+        body={
+          general
+            ? "Your General Registration is verified. Enrol in each included event to reserve your seat."
+            : "Your spot is confirmed. See you at the event!"
+        }
+        cta={{ label: general ? "Choose my events" : "View my events", onClick: () => router.push(backHref) }}
       />
     );
   }
@@ -109,7 +123,11 @@ export function PaymentFlow({
         icon={<Loader2 className="size-6" />}
         title="Submitted for review"
         body="An organizer will verify your payment shortly. You'll see the status update on your dashboard."
-        cta={{ label: "Go to my events", onClick: () => router.push("/dashboard/registrations") }}
+        cta={
+          general
+            ? { label: "Refresh status", onClick: () => router.refresh() }
+            : { label: "Go to my events", onClick: () => router.push(backHref) }
+        }
       />
     );
   }

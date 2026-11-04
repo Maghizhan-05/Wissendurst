@@ -23,6 +23,8 @@ const SUBMIT_ERRORS: Record<string, string> = {
   REGISTRATION_CANCELLED:
     "This registration was cancelled. Register again to take part.",
   ALREADY_PAID: "This registration is already paid and confirmed.",
+  GENERAL_REGISTRATION_REQUIRED:
+    "This event is included in General Registration, so it isn't paid individually. Complete General Registration instead.",
   HOLD_EXPIRED:
     "Your seat hold expired. Register for the event again to renew it, then submit your payment.",
   EVENT_FULL:
@@ -83,7 +85,7 @@ export async function analyzeScreenshot(
     supabase
       .from("registrations")
       .select(
-        "id, profile_id, team_id, is_team_head, registration_status, payment_status, event:events(archived_at)",
+        "id, profile_id, team_id, is_team_head, registration_status, payment_status, event:events(archived_at, general_registration_covered)",
       )
       .eq("id", registrationId)
       .maybeSingle(),
@@ -98,7 +100,7 @@ export async function analyzeScreenshot(
         | "is_team_head"
         | "registration_status"
         | "payment_status"
-      > & { event: { archived_at: string | null } | null })
+      > & { event: { archived_at: string | null; general_registration_covered: boolean } | null })
     | null;
   if (!row || row.profile_id !== user.id)
     return { ok: false, error: "Registration not found." };
@@ -106,7 +108,14 @@ export async function analyzeScreenshot(
     ((states ?? []) as { registration_id: string; expired_intent: boolean }[]).find(
       (s) => s.registration_id === registrationId,
     ) ?? null;
-  const block = paymentBlockReason(row, state, Boolean(row.event?.archived_at));
+  const block = paymentBlockReason(
+    row,
+    state,
+    Boolean(row.event?.archived_at),
+    Boolean(row.event?.general_registration_covered),
+  );
+  if (block === "general_registration")
+    return { ok: false, error: SUBMIT_ERRORS.GENERAL_REGISTRATION_REQUIRED };
   if (block === "team_member") return { ok: false, error: SUBMIT_ERRORS.TEAM_HEAD_PAYS };
   if (block === "archived") return { ok: false, error: SUBMIT_ERRORS.EVENT_ARCHIVED };
   if (block === "cancelled")

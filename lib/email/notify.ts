@@ -3,6 +3,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { sendMail } from "./mailer";
 import {
   approvalGrantedEmail,
+  generalRegistrationRejectedEmail,
+  generalRegistrationSubmittedEmail,
+  generalRegistrationVerifiedEmail,
   approvalRejectedEmail,
   paymentConfirmedEmail,
   paymentUnderReviewEmail,
@@ -10,7 +13,12 @@ import {
   signupPendingEmail,
   welcomeEmail,
 } from "./templates";
-import type { EventRow, ProfileRow, RegistrationRow } from "@/types/database";
+import type {
+  EventRow,
+  GeneralRegistrationRow,
+  ProfileRow,
+  RegistrationRow,
+} from "@/types/database";
 
 /** Fetches a registration with its event + owner profile (admin client). */
 async function loadRegistration(registrationId: string): Promise<{
@@ -135,4 +143,47 @@ export async function notifyPaymentUnderReview(registrationId: string): Promise<
     data.registration.transaction_id,
   );
   await sendMail({ to: data.profile.email, subject, html });
+}
+
+async function loadGeneralRegistration(id: string): Promise<{
+  gr: GeneralRegistrationRow;
+  profile: ProfileRow;
+} | null> {
+  const admin = createAdminClient();
+  const { data } = await admin.from("general_registrations").select("*").eq("id", id).maybeSingle();
+  if (!data) return null;
+  const gr = data as GeneralRegistrationRow;
+  const profile = await loadProfile(gr.profile_id);
+  return profile ? { gr, profile } : null;
+}
+
+/** General Registration payment entered review (UTR submitted). */
+export async function notifyGeneralRegistrationSubmitted(id: string): Promise<void> {
+  const d = await loadGeneralRegistration(id);
+  if (!d || d.gr.status !== "under_review") return;
+  const { subject, html } = generalRegistrationSubmittedEmail(
+    d.profile.full_name,
+    d.gr.amount,
+    d.gr.transaction_id,
+  );
+  await sendMail({ to: d.profile.email, subject, html });
+}
+
+/** Verified: announces the new GR participant ID. */
+export async function notifyGeneralRegistrationVerified(id: string): Promise<void> {
+  const d = await loadGeneralRegistration(id);
+  if (!d || d.gr.status !== "verified" || !d.gr.new_participant_id) return;
+  const { subject, html } = generalRegistrationVerifiedEmail(
+    d.profile.full_name,
+    d.gr.previous_participant_id,
+    d.gr.new_participant_id,
+  );
+  await sendMail({ to: d.profile.email, subject, html });
+}
+
+export async function notifyGeneralRegistrationRejected(id: string): Promise<void> {
+  const d = await loadGeneralRegistration(id);
+  if (!d || d.gr.status !== "rejected") return;
+  const { subject, html } = generalRegistrationRejectedEmail(d.profile.full_name, d.gr.review_note);
+  await sendMail({ to: d.profile.email, subject, html });
 }

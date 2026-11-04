@@ -65,6 +65,8 @@ export interface EventRow {
   team_fee: number; // paise — flat fee for a team of 2+ (lone = registration_fee)
   archived_at: string | null; // set = archived: hidden publicly, no registration
   archived_by: string | null; // admin who archived it
+  /** Included in General Registration (0023); set only via the admin RPC. */
+  general_registration_covered: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -103,6 +105,56 @@ export interface EventOfferRow {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/** General Registration settings singleton (0023). Fee in paise. */
+export interface GeneralRegistrationSettingsRow {
+  id: 1;
+  enabled: boolean;
+  fee: number;
+  upi_id: string | null; // dedicated; never falls back to an event/default UPI
+  payee_name: string;
+  description: string;
+  instructions: string;
+  updated_at: string;
+  updated_by: string | null;
+}
+
+/** A participant's General Registration payment (0023). Terms frozen at creation. */
+export interface GeneralRegistrationRow {
+  id: string;
+  profile_id: string;
+  status: PaymentStatus;
+  amount: number; // paise, frozen
+  upi_id: string; // frozen destination
+  payee_name: string; // frozen payee
+  transaction_id: string | null;
+  payment_screenshot: string | null;
+  ocr_raw_text: string | null;
+  ocr_confidence: number | null;
+  review_note: string | null;
+  previous_participant_id: string | null; // E id released on verification
+  new_participant_id: string | null; // GR id assigned on verification
+  created_at: string;
+  submitted_at: string | null;
+  verified_at: string | null;
+  verified_by: string | null;
+  updated_at: string;
+}
+
+/** Append-only General Registration audit (0023). */
+export interface GeneralRegistrationEventRow {
+  id: number;
+  general_registration_id: string;
+  profile_id: string;
+  actor_id: string | null;
+  action: string;
+  from_status: PaymentStatus | null;
+  to_status: PaymentStatus | null;
+  note: string | null;
+  previous_participant_id: string | null;
+  new_participant_id: string | null;
+  created_at: string;
 }
 
 /** Participant-ID namespaces: E (standard) and GR (General Registration). */

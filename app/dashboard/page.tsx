@@ -9,12 +9,27 @@ import { ButtonLink } from "@/components/ui/button";
 import { requireProfile } from "@/lib/auth";
 import { getMyRegistrations } from "@/lib/data/registrations";
 import { formatINR } from "@/lib/utils";
+import { GeneralRegistrationCard } from "@/components/general-registration/dashboard-card";
+import {
+  getGeneralRegistrationSettings,
+  getMyGeneralRegistration,
+  isGeneralRegistrationOpen,
+} from "@/lib/data/general-registration";
+import { canTakeGeneralRegistration } from "@/lib/general-registration";
 
 export const metadata: Metadata = { title: "Dashboard" };
 
 export default async function DashboardPage() {
   const profile = await requireProfile();
-  const registrations = await getMyRegistrations();
+  const [registrations, gr, grSettings] = await Promise.all([
+    getMyRegistrations(),
+    getMyGeneralRegistration(),
+    getGeneralRegistrationSettings(),
+  ]);
+  const showGr =
+    Boolean(gr) ||
+    (isGeneralRegistrationOpen(grSettings) &&
+      canTakeGeneralRegistration(profile.participant_id, profile.approval_status));
 
   const confirmed = registrations.filter(
     (r) => r.registration_status === "confirmed",
@@ -32,6 +47,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-10">
+      {showGr && <GeneralRegistrationCard gr={gr} fee={grSettings.fee} />}
       <div className="grid gap-6 lg:grid-cols-[1.1fr_1.4fr]">
         <ParticipantIdCard profile={profile} />
         <div className="grid grid-cols-2 gap-4">

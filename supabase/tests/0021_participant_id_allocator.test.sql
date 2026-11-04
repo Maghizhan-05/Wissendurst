@@ -168,8 +168,12 @@ select pg_temp.expect_error($q$insert into public.participant_id_released (names
 select pg_temp.expect_error($q$select nextval('public.participant_seq')$q$, 'permission denied');
 select pg_temp.check((select count(*) from public.participant_id_allocations) = 0
                  and (select count(*) from public.participant_id_history) = 0, '6: participants see no allocation/history rows');
--- a participant cannot rewrite their own id through their profile-update policy
-select pg_temp.expect_error($q$update public.profiles set participant_id = 'W27/E/0001' where id = '00000000-0000-0000-0000-000000000023'$q$, 'PARTICIPANT_ID_MANAGED_BY_ALLOCATOR');
+-- a participant cannot rewrite their own id directly (blocked by the allocator
+-- guard, and since 0022 no client role may update profiles at all)
+update public.profiles set participant_id = 'W27/E/0001' where id = '00000000-0000-0000-0000-000000000023';
+reset role;
+select pg_temp.check(pg_temp.id_of(23) = 'W27/E/0012', '6: participant cannot rewrite their own id');
+set role authenticated;
 select set_config('request.jwt.claim.sub', pg_temp.pid(1)::text, false);
 select pg_temp.check((select count(*) from public.participant_id_history) > 0
                  and (select count(*) from public.participant_id_allocations) > 0, '6: signups admin can read allocations/history');

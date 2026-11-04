@@ -32,6 +32,7 @@ import {
   getMyRegisteredEventIds,
 } from "@/lib/data/registrations";
 import { getProfile } from "@/lib/auth";
+import { isGeneralRegistrationId } from "@/lib/general-registration";
 import { EVENT_CATEGORY_LABELS } from "@/lib/constants";
 import { formatEventDate, formatINR, formatTime } from "@/lib/utils";
 import { EventBackground } from "@/components/three/event-background";
@@ -219,6 +220,9 @@ export default async function EventPage({
               {event.is_live && !event.registration_open && (
                 <Badge tone="alert">Closed</Badge>
               )}
+              {event.general_registration_covered && (
+                <Badge tone="brand">General Registration</Badge>
+              )}
               {spotsLeft != null && spotsLeft <= 5 && spotsLeft > 0 && (
                 <Badge tone="warning">{spotsLeft} spots left</Badge>
               )}
@@ -244,6 +248,8 @@ export default async function EventPage({
                 teamMin={event.team_min}
                 teamMax={event.team_max}
                 teamFee={event.team_fee}
+                generalRegistrationCovered={event.general_registration_covered}
+                generallyRegistered={isGeneralRegistrationId(profile?.participant_id)}
                 head={
                   profile
                     ? {
