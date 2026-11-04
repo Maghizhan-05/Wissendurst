@@ -55,8 +55,10 @@ export interface EventRow {
   featured: boolean;
   is_live: boolean; // false = "Coming soon" (locked), no registration
   upi_id: string | null; // per-event UPI; resolved leaf-first up the tree
-  discount_enabled: boolean; // sibling discount on this broader event
-  discount_amount: number; // paise off a sibling sub-event once one is paid
+  /** @deprecated Retired by 0019 (directed Event Offers); kept, never used. */
+  discount_enabled: boolean;
+  /** @deprecated Retired by 0019 (directed Event Offers); kept, never used. */
+  discount_amount: number;
   team_enabled: boolean; // registration happens as a team
   team_min: number; // smallest team size (head included)
   team_max: number; // largest team size (head included)
@@ -82,9 +84,24 @@ export interface RegistrationRow {
   team_id: string | null; // set when this registration is part of a team
   is_team_head: boolean; // the member who registered & pays for the team
   hold_expires_at: string | null; // seat hold deadline for unpaid/screenshot-only intents
+  list_price: number | null; // paise; event price when the intent was created (null = legacy)
+  offer_discount: number; // paise; Event Offer discount frozen on the intent
+  offer_source_event_id: string | null; // event whose verified payment unlocked the offer
   registered_at: string;
   verified_at: string | null;
   verified_by: string | null;
+  updated_at: string;
+}
+
+/** Directed Event Offer: a verified payment for `source` discounts `target`. */
+export interface EventOfferRow {
+  id: string;
+  source_event_id: string;
+  target_event_id: string;
+  discount_amount: number; // paise
+  enabled: boolean;
+  created_by: string | null;
+  created_at: string;
   updated_at: string;
 }
 

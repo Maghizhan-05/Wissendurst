@@ -44,15 +44,6 @@ export const eventSchema = z.object({
   parent_event_id: z.string().uuid().or(z.literal("")).optional().default(""),
   // Per-event UPI id for the payment QR (any level). Empty = inherit / default.
   upi_id: z.string().trim().max(120).optional().default(""),
-  // Sibling discount, meaningful on a broader (top-level) event.
-  discount_enabled: z.coerce.boolean().optional().default(false),
-  discount_amount_rupees: z.coerce
-    .number()
-    .int("Whole rupees only")
-    .min(0, "Discount can't be negative")
-    .max(1_000_000)
-    .optional()
-    .default(0),
   // Team registration.
   team_enabled: z.coerce.boolean().optional().default(false),
   team_min: z.coerce.number().int().min(1).max(100).optional().default(1),
@@ -67,3 +58,36 @@ export const eventSchema = z.object({
 });
 
 export type EventInput = z.infer<typeof eventSchema>;
+
+/**
+ * Event Offers edited on the event form: a verified payment for THIS event
+ * (the source) gives `discount_rupees` off each target event. Directed: it
+ * says nothing about the reverse direction.
+ */
+export const eventOfferSchema = z.object({
+  target_event_id: z.string().uuid("Pick a target event"),
+  discount_rupees: z.coerce
+    .number({ message: "Enter a discount amount" })
+    .int("Whole rupees only")
+    .min(1, "Offer discount must be at least ₹1")
+    .max(1_000_000, "Offer discount is too large"),
+  enabled: z.coerce.boolean().optional().default(true),
+});
+
+export const eventOffersSchema = z
+  .array(eventOfferSchema)
+  .max(200, "Too many offers")
+  .superRefine((offers, ctx) => {
+    const seen = new Set<string>();
+    offers.forEach((o, i) => {
+      if (seen.has(o.target_event_id))
+        ctx.addIssue({
+          code: "custom",
+          path: [i, "target_event_id"],
+          message: "Each target event can only have one offer.",
+        });
+      seen.add(o.target_event_id);
+    });
+  });
+
+export type EventOfferInput = z.infer<typeof eventOfferSchema>;

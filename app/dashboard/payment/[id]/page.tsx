@@ -60,7 +60,9 @@ export default async function PaymentPage({ params }: PageProps<"/dashboard/paym
   const upiId = (await resolveEventUpiId(event)) ?? defaultUpiId();
   const qr = await upiQrDataUrl(registration.amount, note, upiId);
   const payee = process.env.NEXT_PUBLIC_UPI_PAYEE_NAME ?? "Wissendurst 27";
-  const discount = event.registration_fee - registration.amount;
+  // Frozen at intent creation (0019). Legacy rows have no list price stored.
+  const discount = registration.offer_discount ?? 0;
+  const listPrice = registration.list_price ?? registration.amount + discount;
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -137,7 +139,7 @@ export default async function PaymentPage({ params }: PageProps<"/dashboard/paym
                 <div className="text-right">
                   {discount > 0 && (
                     <p className="text-sm text-muted line-through">
-                      {formatINR(event.registration_fee)}
+                      {formatINR(listPrice)}
                     </p>
                   )}
                   <p className="font-display text-3xl font-semibold text-foreground">
@@ -147,7 +149,7 @@ export default async function PaymentPage({ params }: PageProps<"/dashboard/paym
               </div>
               {discount > 0 && (
                 <p className="mt-2 inline-flex items-center gap-1 rounded-full bg-success/12 px-2.5 py-0.5 text-xs font-medium text-success">
-                  Sibling discount applied — you saved {formatINR(discount)}
+                  Event offer applied — you saved {formatINR(discount)}
                 </p>
               )}
 

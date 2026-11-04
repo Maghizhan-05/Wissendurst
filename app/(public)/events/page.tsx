@@ -4,10 +4,10 @@ import { EventsExplorer } from "@/components/events/events-explorer";
 import {
   getTopLevelEvents,
   getSubEventCounts,
-  getEventDiscounts,
+  getMyOfferPrices,
+  soloDiscounts,
 } from "@/lib/data/events";
 import { getMyRegisteredEventIds } from "@/lib/data/registrations";
-import { getProfile } from "@/lib/auth";
 
 export const metadata: Metadata = {
   title: "Events",
@@ -22,13 +22,12 @@ export default async function EventsPage({
   const category =
     typeof params.category === "string" ? params.category : undefined;
 
-  const [events, subEventCounts, registeredIds, profile] = await Promise.all([
+  const [events, subEventCounts, registeredIds] = await Promise.all([
     getTopLevelEvents(),
     getSubEventCounts(),
     getMyRegisteredEventIds(),
-    getProfile(),
   ]);
-  const discounts = await getEventDiscounts(events, profile?.id ?? null);
+  const discounts = soloDiscounts(await getMyOfferPrices(events.map((e) => e.id)));
 
   return (
     <div className="py-14 md:py-20">

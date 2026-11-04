@@ -26,6 +26,8 @@ export function TeamRegister({
   slug,
   fee,
   teamFee,
+  soloDiscountPaise = 0,
+  teamDiscountPaise = 0,
   teamMin,
   teamMax,
   head,
@@ -34,6 +36,9 @@ export function TeamRegister({
   slug: string;
   fee: number; // lone-participant fee (team of one)
   teamFee: number; // flat fee for a team of 2+
+  /** Event Offer discount the head qualifies for (same rule as the RPC). */
+  soloDiscountPaise?: number;
+  teamDiscountPaise?: number;
   teamMin: number;
   teamMax: number;
   head: Head;
@@ -55,8 +60,11 @@ export function TeamRegister({
   const teamSize = members.length + 1; // + head
   const atMax = teamSize >= teamMax;
   const canSubmit = teamSize >= teamMin && teamSize <= teamMax;
-  // A team of one pays the lone fee; a real team pays the flat team fee.
-  const total = teamSize <= 1 ? fee : teamFee;
+  // A team of one pays the lone fee; a real team pays the flat team fee. The
+  // head's best Event Offer comes off that price (never below zero).
+  const listTotal = teamSize <= 1 ? fee : teamFee;
+  const offer = Math.min(teamSize <= 1 ? soloDiscountPaise : teamDiscountPaise, listTotal);
+  const total = listTotal - offer;
 
   function addMember() {
     const value = pid.trim();
@@ -165,8 +173,18 @@ export function TeamRegister({
           <div>
             <p className="text-sm text-muted">Total to pay</p>
             <p className="font-display text-2xl font-semibold text-foreground">
+              {offer > 0 && (
+                <span className="mr-2 align-middle font-mono text-sm font-normal text-muted line-through">
+                  {formatINR(listTotal)}
+                </span>
+              )}
               {total === 0 ? "Free" : formatINR(total)}
             </p>
+            {offer > 0 && (
+              <p className="text-xs font-medium text-success">
+                Event offer: you save {formatINR(offer)}
+              </p>
+            )}
             <p className="text-xs text-muted">
               {total === 0
                 ? "Free"

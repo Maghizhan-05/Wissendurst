@@ -6,6 +6,8 @@ import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { slugify } from "@/lib/utils";
 import { EVENT_CATEGORIES, EVENT_CATEGORY_LABELS } from "@/lib/constants";
 import type { AdminActionState } from "@/lib/actions/admin";
+import type { OfferTargetOption } from "@/lib/data/admin";
+import { EventOffersEditor, type OfferDraft } from "@/components/admin/event-offers-editor";
 import type { EventRow } from "@/types/database";
 
 type Action = (
@@ -18,6 +20,8 @@ export function EventForm({
   event,
   parents = [],
   defaultParentId = "",
+  offers = [],
+  offerTargets = [],
 }: {
   action: Action;
   event?: EventRow;
@@ -25,6 +29,10 @@ export function EventForm({
   parents?: { id: string; title: string; depth: number }[];
   /** Preselected parent (e.g. when adding a sub-event from a parent row). */
   defaultParentId?: string;
+  /** Existing outgoing Event Offers of this event. */
+  offers?: OfferDraft[];
+  /** Events an offer may target. */
+  offerTargets?: OfferTargetOption[];
 }) {
   const [state, formAction, pending] = useActionState<AdminActionState, FormData>(
     action,
@@ -114,35 +122,6 @@ export function EventForm({
           maxLength={120}
         />
       </Field>
-
-      <div className="rounded-xl border border-border bg-surface-2/40 p-4">
-        <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-          <input
-            type="checkbox"
-            name="discount_enabled"
-            defaultChecked={event?.discount_enabled ?? false}
-            className="size-4 accent-[var(--brand)]"
-          />
-          Sibling discount
-        </label>
-        <p className="mt-1 text-xs text-muted">
-          Set this on a <strong>broader event (any level that has sub-events)</strong>.
-          Once a participant has a <strong>verified payment</strong> for one
-          sub-event under it, their next registration for another sub-event
-          under the same broader event gets this amount off.
-        </p>
-        <div className="mt-3 max-w-xs">
-          <Field label="Discount amount (₹)" htmlFor="discount_amount_rupees">
-            <Input
-              id="discount_amount_rupees"
-              name="discount_amount_rupees"
-              type="number"
-              min={0}
-              defaultValue={event ? event.discount_amount / 100 : 0}
-            />
-          </Field>
-        </div>
-      </div>
 
       <Field label="Short description" htmlFor="short_description" hint="One line, shown on cards" required>
         <Input
@@ -286,6 +265,8 @@ export function EventForm({
           </Field>
         </div>
       </div>
+
+      <EventOffersEditor initialOffers={offers} targets={offerTargets} />
 
       {state && !state.ok && (
         <p className="rounded-lg border border-alert/30 bg-alert/10 px-3 py-2 text-sm text-alert">

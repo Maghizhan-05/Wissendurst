@@ -55,6 +55,7 @@ function RegisterCtaBody({
   isFull,
   fee,
   discountPaise = 0,
+  teamDiscountPaise = 0,
   existing,
   teamEnabled = false,
   teamMin = 2,
@@ -69,7 +70,10 @@ function RegisterCtaBody({
   registrationOpen: boolean;
   isFull: boolean;
   fee: number;
+  /** Event Offer discount on the solo price (paise). */
   discountPaise?: number;
+  /** Event Offer discount on the team price when this user heads a team. */
+  teamDiscountPaise?: number;
   /** A live registration (cancelled rows / expired intents are passed as null). */
   existing: (RegistrationRow & { state?: RegistrationState | null }) | null;
   teamEnabled?: boolean;
@@ -190,6 +194,8 @@ function RegisterCtaBody({
         slug={slug}
         fee={fee}
         teamFee={teamFee}
+        soloDiscountPaise={discountPaise}
+        teamDiscountPaise={teamDiscountPaise}
         teamMin={teamMin}
         teamMax={teamMax}
         head={head}

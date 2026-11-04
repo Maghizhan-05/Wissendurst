@@ -87,194 +87,78 @@ export async function getEventAncestors(event: EventRow): Promise<EventRow[]> {
   return chain;
 }
 
-/**
- * The sibling discount (in paise) a user would get registering for this event
- * right now — mirrors register_for_event: the nearest ancestor with the
- * discount enabled under which the user already has a verified payment on
- * another event. 0 when none applies. Used to preview the discount on the
- * event page before the user registers.
- */
-export async function getEventDiscount(
-  event: EventRow,
-  userId: string | null,
-): Promise<number> {
-  if (!userId || event.registration_fee <= 0) return 0;
+export interface OfferPrice {
+  list: number; // paise — the event's own price
+  discount: number; // paise — best qualifying Event Offer, capped at list
+  amount: number; // paise — what the user would pay right now
+}
 
-  const supabase = await createClient();
-  const { data: evRows } = await supabase
-    .from("events")
-    .select("id, parent_event_id, discount_enabled, discount_amount");
-  const rows =
-    (evRows as {
-      id: string;
-      parent_event_id: string | null;
-      discount_enabled: boolean;
-      discount_amount: number;
-    }[]) ?? [];
-
-  const byId = new Map(rows.map((r) => [r.id, r]));
-  const childrenOf = new Map<string, string[]>();
-  for (const r of rows) {
-    if (r.parent_event_id) {
-      const a = childrenOf.get(r.parent_event_id) ?? [];
-      a.push(r.id);
-      childrenOf.set(r.parent_event_id, a);
-    }
-  }
-
-  // Ancestors, nearest first.
-  const ancestors: string[] = [];
-  const seen = new Set<string>([event.id]);
-  let cur = event.parent_event_id;
-  while (cur && !seen.has(cur) && ancestors.length < 5) {
-    seen.add(cur);
-    ancestors.push(cur);
-    cur = byId.get(cur)?.parent_event_id ?? null;
-  }
-  if (ancestors.length === 0) return 0;
-
-  const { data: regRows } = await supabase
-    .from("registrations")
-    .select("event_id")
-    .eq("profile_id", userId)
-    .eq("payment_status", "verified");
-  const verified = new Set(
-    (regRows ?? []).map((r) => (r as { event_id: string }).event_id),
-  );
-  if (verified.size === 0) return 0;
-
-  const subtree = (rootId: string): Set<string> => {
-    const out = new Set<string>();
-    const stack = [rootId];
-    while (stack.length) {
-      const id = stack.pop() as string;
-      if (out.has(id)) continue;
-      out.add(id);
-      for (const c of childrenOf.get(id) ?? []) stack.push(c);
-    }
-    return out;
-  };
-
-  for (const ancId of ancestors) {
-    const anc = byId.get(ancId);
-    if (!anc?.discount_enabled || anc.discount_amount <= 0) continue;
-    const ids = subtree(ancId);
-    let eligible = false;
-    for (const eid of verified) {
-      if (eid !== event.id && ids.has(eid)) {
-        eligible = true;
-        break;
-      }
-    }
-    if (eligible) return Math.min(anc.discount_amount, event.registration_fee);
-  }
-  return 0;
+export interface EventOfferPrices {
+  /** Solo registration (or a team of one). */
+  solo: OfferPrice;
+  /** A real team (2+) registered by this user as head. */
+  team: OfferPrice;
 }
 
 /**
- * Discounts (paise) a user would get for a batch of events — same rule as
- * getEventDiscount, computed in one pass for card grids. Only returns entries
- * for events the user is eligible for AND not already registered for.
+ * Offer-aware prices for the signed-in user, computed by the same database
+ * rule register_for_event / register_team use (my_offer_prices), so previews
+ * always match the frozen price. Only events with a discount are returned.
+ * Events the user already holds a live registration for are skipped.
  */
-export async function getEventDiscounts(
-  events: EventRow[],
-  userId: string | null,
-): Promise<Record<string, number>> {
-  const result: Record<string, number> = {};
-  if (!userId || events.length === 0) return result;
+export async function getMyOfferPrices(
+  eventIds: string[],
+): Promise<Record<string, EventOfferPrices>> {
+  const result: Record<string, EventOfferPrices> = {};
+  if (eventIds.length === 0) return result;
 
   const supabase = await createClient();
-  const { data: evRows } = await supabase
-    .from("events")
-    .select("id, parent_event_id, discount_enabled, discount_amount");
-  const rows =
-    (evRows as {
-      id: string;
-      parent_event_id: string | null;
-      discount_enabled: boolean;
-      discount_amount: number;
-    }[]) ?? [];
-  const byId = new Map(rows.map((r) => [r.id, r]));
-  const childrenOf = new Map<string, string[]>();
-  for (const r of rows) {
-    if (r.parent_event_id) {
-      const a = childrenOf.get(r.parent_event_id) ?? [];
-      a.push(r.id);
-      childrenOf.set(r.parent_event_id, a);
-    }
-  }
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return result;
 
-  const [{ data: regRows }, { data: stateRows }] = await Promise.all([
-    supabase
-      .from("registrations")
-      .select("event_id, payment_status")
-      .eq("profile_id", userId),
+  const [{ data, error }, { data: states }] = await Promise.all([
+    supabase.rpc("my_offer_prices", { p_event_ids: eventIds }),
     supabase.rpc("my_registration_states"),
   ]);
-  const verified = new Set<string>();
-  for (const r of (regRows ?? []) as {
-    event_id: string;
-    payment_status: string;
-  }[]) {
-    if (r.payment_status === "verified") verified.add(r.event_id);
+  if (error) {
+    console.error("my_offer_prices failed:", error);
+    return result;
   }
-  // Live registrations (cancelled rows and expired intents can register again).
-  const active = new Set<string>();
-  for (const st of (stateRows ?? []) as {
+  const live = new Set(
+    ((states ?? []) as { event_id: string; reusable: boolean }[])
+      .filter((st) => !st.reusable)
+      .map((st) => st.event_id),
+  );
+  for (const r of (data ?? []) as {
     event_id: string;
-    reusable: boolean;
+    solo_list: number;
+    solo_discount: number;
+    solo_amount: number;
+    team_list: number;
+    team_discount: number;
+    team_amount: number;
   }[]) {
-    if (!st.reusable) active.add(st.event_id);
-  }
-  if (verified.size === 0) return result;
-
-  const subtreeCache = new Map<string, Set<string>>();
-  const subtree = (rootId: string): Set<string> => {
-    const cached = subtreeCache.get(rootId);
-    if (cached) return cached;
-    const out = new Set<string>();
-    const stack = [rootId];
-    while (stack.length) {
-      const id = stack.pop() as string;
-      if (out.has(id)) continue;
-      out.add(id);
-      for (const c of childrenOf.get(id) ?? []) stack.push(c);
-    }
-    subtreeCache.set(rootId, out);
-    return out;
-  };
-
-  for (const ev of events) {
-    if (ev.team_enabled || ev.registration_fee <= 0) continue;
-    if ((childrenOf.get(ev.id) ?? []).length > 0) continue; // container
-    if (active.has(ev.id)) continue; // already registered
-
-    const ancestors: string[] = [];
-    const seen = new Set<string>([ev.id]);
-    let cur = ev.parent_event_id;
-    while (cur && !seen.has(cur) && ancestors.length < 5) {
-      seen.add(cur);
-      ancestors.push(cur);
-      cur = byId.get(cur)?.parent_event_id ?? null;
-    }
-    for (const ancId of ancestors) {
-      const anc = byId.get(ancId);
-      if (!anc?.discount_enabled || anc.discount_amount <= 0) continue;
-      const ids = subtree(ancId);
-      let eligible = false;
-      for (const eid of verified) {
-        if (eid !== ev.id && ids.has(eid)) {
-          eligible = true;
-          break;
-        }
-      }
-      if (eligible) {
-        result[ev.id] = Math.min(anc.discount_amount, ev.registration_fee);
-        break;
-      }
-    }
+    if (live.has(r.event_id)) continue;
+    if (r.solo_discount <= 0 && r.team_discount <= 0) continue;
+    result[r.event_id] = {
+      solo: { list: r.solo_list, discount: r.solo_discount, amount: r.solo_amount },
+      team: { list: r.team_list, discount: r.team_discount, amount: r.team_amount },
+    };
   }
   return result;
+}
+
+/** Solo-price discounts (paise) keyed by event id — for event cards. */
+export function soloDiscounts(
+  prices: Record<string, EventOfferPrices>,
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [id, p] of Object.entries(prices)) {
+    if (p.solo.discount > 0) out[id] = p.solo.discount;
+  }
+  return out;
 }
 
 /**

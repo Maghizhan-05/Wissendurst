@@ -1,6 +1,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import type {
+  EventOfferRow,
   EventRow,
   ProfileRow,
   RegistrationRow,
@@ -185,6 +186,67 @@ export async function getEventIdsWithHistory(): Promise<Set<string>> {
         : String(Object.values(r as Record<string, unknown>)[0]),
     ),
   );
+}
+
+export interface OfferTargetOption {
+  id: string;
+  title: string;
+  /** Price a solo participant pays (paise). */
+  registration_fee: number;
+  team_enabled: boolean;
+  team_fee: number;
+  /** Not selectable for NEW offers (archived or has sub-events). */
+  unavailable: boolean;
+}
+
+/**
+ * Events an Event Offer may target: every event except `excludeId`. Archived
+ * events and broader events (with sub-events) are marked unavailable so they
+ * can only appear when an existing offer already points at them.
+ */
+export async function getOfferTargetOptions(
+  excludeId?: string,
+): Promise<OfferTargetOption[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("events")
+    .select("id, title, parent_event_id, registration_fee, team_enabled, team_fee, archived_at")
+    .order("title", { ascending: true });
+  const rows = (data ?? []) as {
+    id: string;
+    title: string;
+    parent_event_id: string | null;
+    registration_fee: number;
+    team_enabled: boolean;
+    team_fee: number;
+    archived_at: string | null;
+  }[];
+  const parents = new Set(
+    rows.map((r) => r.parent_event_id).filter((p): p is string => Boolean(p)),
+  );
+  return rows
+    .filter((r) => r.id !== excludeId)
+    .map((r) => ({
+      id: r.id,
+      title: r.title,
+      registration_fee: r.registration_fee,
+      team_enabled: r.team_enabled,
+      team_fee: r.team_fee,
+      unavailable: Boolean(r.archived_at) || parents.has(r.id),
+    }));
+}
+
+/** Offers whose source is this event (a verified payment here unlocks them). */
+export async function getEventOffersForSource(
+  sourceId: string,
+): Promise<EventOfferRow[]> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("event_offers")
+    .select("*")
+    .eq("source_event_id", sourceId)
+    .order("created_at", { ascending: true });
+  return (data as EventOfferRow[]) ?? [];
 }
 
 export async function getEventByIdAdmin(id: string): Promise<EventRow | null> {

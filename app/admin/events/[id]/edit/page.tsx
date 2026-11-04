@@ -4,7 +4,12 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Sheet } from "lucide-react";
 import { EventForm } from "@/components/admin/event-form";
 import { updateEvent } from "@/lib/actions/admin";
-import { getEventByIdAdmin, getParentEventOptions } from "@/lib/data/admin";
+import {
+  getEventByIdAdmin,
+  getEventOffersForSource,
+  getOfferTargetOptions,
+  getParentEventOptions,
+} from "@/lib/data/admin";
 import { requireScope } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Admin · Edit event" };
@@ -17,7 +22,11 @@ export default async function EditEventPage({
   const event = await getEventByIdAdmin(id);
   if (!event) notFound();
 
-  const parents = await getParentEventOptions(id);
+  const [parents, offers, offerTargets] = await Promise.all([
+    getParentEventOptions(id),
+    getEventOffersForSource(id),
+    getOfferTargetOptions(id),
+  ]);
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -42,7 +51,17 @@ export default async function EditEventPage({
         </a>
       </div>
       <div className="mt-8">
-        <EventForm action={updateEvent} event={event} parents={parents} />
+        <EventForm
+          action={updateEvent}
+          event={event}
+          parents={parents}
+          offers={offers.map((o) => ({
+            target_event_id: o.target_event_id,
+            discount_rupees: String(o.discount_amount / 100),
+            enabled: o.enabled,
+          }))}
+          offerTargets={offerTargets}
+        />
       </div>
     </div>
   );

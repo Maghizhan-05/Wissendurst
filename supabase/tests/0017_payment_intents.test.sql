@@ -196,7 +196,8 @@ select pg_temp.check((select expired_intent and reusable from public.my_registra
   'old head remains an expired, reusable intent');
 select pg_temp.expect_error($q$select public.register_team(pg_temp.ev('tm2'), array[]::uuid[])$q$, 'EVENT_FULL');
 
--- 14. Discounts still follow the ancestor chain; fully discounted confirms immediately
+-- 14. Since 0019 the event hierarchy alone grants no discount (directed Event
+--     Offers replace the sibling rule; see 0019_event_offers.test.sql).
 select pg_temp.as_user(3);
 select (public.register_for_event(pg_temp.ev('q1'))).amount = 5000 as q1_full_price;
 select (public.register_for_event(pg_temp.ev('z1'))).amount = 5000 as z1_full_price;
@@ -204,9 +205,10 @@ select pg_temp.as_user(0);
 select public.admin_set_payment_status((pg_temp.reg(3,'q1')).id, 'verified', null) is not null;
 select public.admin_set_payment_status((pg_temp.reg(3,'z1')).id, 'verified', null) is not null;
 select pg_temp.as_user(3);
-select (public.register_for_event(pg_temp.ev('q2'))).amount = 2000 as q2_discounted;
-select pg_temp.check((select registration_status = 'confirmed' and payment_status = 'verified' and amount = 0
-   from public.register_for_event(pg_temp.ev('z2'))), 'fully discounted registration confirms immediately');
+select pg_temp.check((select amount = 5000 and registration_status = 'pending'
+   from public.register_for_event(pg_temp.ev('q2'))), 'sibling of a verified event pays the full price');
+select pg_temp.check((select amount = 5000 and registration_status = 'pending'
+   from public.register_for_event(pg_temp.ev('z2'))), 'legacy parent discount no longer applies');
 
 -- 15. Grants: public aggregate is callable by anon; internals are not
 reset role; set role anon;

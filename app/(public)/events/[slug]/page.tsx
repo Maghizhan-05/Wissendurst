@@ -24,8 +24,8 @@ import {
   getSubEventCounts,
   getEventAncestors,
   getEventCapacityCounts,
-  getEventDiscount,
-  getEventDiscounts,
+  getMyOfferPrices,
+  soloDiscounts,
 } from "@/lib/data/events";
 import {
   getMyRegistrationForEvent,
@@ -69,13 +69,14 @@ export default async function EventPage({
 
   // A broader event with several sub-events renders as a hub.
   if (subEvents.length > 1) {
-    const [registeredIds, counts, ancestors, profile] = await Promise.all([
+    const [registeredIds, counts, ancestors] = await Promise.all([
       getMyRegisteredEventIds(),
       getSubEventCounts(),
       getEventAncestors(event),
-      getProfile(),
     ]);
-    const discounts = await getEventDiscounts(subEvents, profile?.id ?? null);
+    const discounts = soloDiscounts(
+      await getMyOfferPrices(subEvents.map((s) => s.id)),
+    );
     return (
       <article className="py-10 md:py-14">
         <EventBackground category={event.category} slug={event.slug} />
@@ -135,10 +136,11 @@ export default async function EventPage({
     getEventAncestors(event),
   ]);
 
-  // Preview the sibling discount a signed-in user would get (solo events only).
-  const discountPaise = event.team_enabled
-    ? 0
-    : await getEventDiscount(event, profile?.id ?? null);
+  // Event Offer the signed-in user qualifies for — same database rule the
+  // registration RPCs use, so the preview matches the frozen price.
+  const offerPrices = (await getMyOfferPrices([event.id]))[event.id];
+  const discountPaise = offerPrices?.solo.discount ?? 0;
+  const teamDiscountPaise = offerPrices?.team.discount ?? 0;
 
   // Capacity use = confirmed registrations + live 72-hour payment-intent holds.
   const taken = counts[event.id]?.seatsTaken ?? 0;
@@ -235,6 +237,7 @@ export default async function EventPage({
                 isFull={isFull}
                 fee={event.registration_fee}
                 discountPaise={discountPaise}
+                teamDiscountPaise={teamDiscountPaise}
                 existing={activeRegistration}
                 expiredIntent={expiredIntent}
                 teamEnabled={event.team_enabled}

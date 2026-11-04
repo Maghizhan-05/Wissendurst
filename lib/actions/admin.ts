@@ -5,7 +5,11 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireScope, requireSuperAdmin } from "@/lib/auth";
-import { eventSchema, type EventInput } from "@/lib/validation/event";
+import {
+  eventOffersSchema,
+  eventSchema,
+  type EventInput,
+} from "@/lib/validation/event";
 import {
   notifyApproval,
   notifyRegistrationConfirmed,
@@ -54,8 +58,8 @@ function rowFromInput(input: EventInput) {
     is_live: !!input.is_live,
     parent_event_id: input.parent_event_id ? input.parent_event_id : null,
     upi_id: input.upi_id ? input.upi_id : null,
-    discount_enabled: !!input.discount_enabled,
-    discount_amount: Math.round((input.discount_amount_rupees ?? 0) * 100),
+    // Legacy discount_enabled / discount_amount columns are retired (0019)
+    // in favour of Event Offers and are left untouched.
     team_enabled: !!input.team_enabled,
     team_min: 1, // solo allowed; the only limit is the max
     team_max: Math.max(1, input.team_max ?? 4),
@@ -164,12 +168,71 @@ function parseEventForm(formData: FormData) {
     is_live: formData.get("is_live") === "on",
     parent_event_id: formData.get("parent_event_id") || "",
     upi_id: formData.get("upi_id"),
-    discount_enabled: formData.get("discount_enabled") === "on",
-    discount_amount_rupees: formData.get("discount_amount_rupees") || 0,
     team_enabled: formData.get("team_enabled") === "on",
     team_max: formData.get("team_max") || 4,
     team_fee_rupees: formData.get("team_fee_rupees") || 0,
   });
+}
+
+type ParsedOffers =
+  | { ok: true; offers: { target_event_id: string; discount_amount: number; enabled: boolean }[] }
+  | { ok: false; error: string };
+
+/** Parses the Event Offers editor payload (JSON in the `offers` field). */
+function parseOffers(formData: FormData, selfId?: string): ParsedOffers {
+  let raw: unknown = [];
+  try {
+    raw = JSON.parse(String(formData.get("offers") ?? "[]"));
+  } catch {
+    return { ok: false, error: "Event offers couldn't be read. Reload and try again." };
+  }
+  const parsed = eventOffersSchema.safeParse(raw);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Check the event offers.",
+    };
+  }
+  if (selfId && parsed.data.some((o) => o.target_event_id === selfId)) {
+    return { ok: false, error: "An event can't offer a discount on itself." };
+  }
+  return {
+    ok: true,
+    offers: parsed.data.map((o) => ({
+      target_event_id: o.target_event_id,
+      discount_amount: o.discount_rupees * 100,
+      enabled: o.enabled,
+    })),
+  };
+}
+
+const OFFER_ERRORS: Record<string, string> = {
+  OFFER_SELF_TARGET: "An event can't offer a discount on itself.",
+  OFFER_DUPLICATE_TARGET: "Each target event can only have one offer.",
+  OFFER_INVALID_AMOUNT: "Offer discounts must be whole rupees above ₹0.",
+  OFFER_TARGET_NOT_FOUND: "An offer's target event no longer exists.",
+  OFFER_TARGET_ARCHIVED: "An offer can't target an archived event.",
+  OFFER_TARGET_NOT_REGISTRABLE:
+    "Offers must target an event people register for directly (not a broader event with sub-events).",
+  OFFER_INVALID: "Check the event offers.",
+  FORBIDDEN: "You don't have permission to manage events.",
+};
+
+async function saveOffers(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  sourceId: string,
+  offers: { target_event_id: string; discount_amount: number; enabled: boolean }[],
+): Promise<string | null> {
+  const { error } = await supabase.rpc("admin_set_event_offers", {
+    p_source: sourceId,
+    p_offers: offers,
+  });
+  if (!error) return null;
+  console.error("admin_set_event_offers failed:", error);
+  for (const key of Object.keys(OFFER_ERRORS)) {
+    if (error.message?.includes(key)) return OFFER_ERRORS[key];
+  }
+  return "Could not save the event offers.";
 }
 
 export async function createEvent(
@@ -183,15 +246,32 @@ export async function createEvent(
     return { ok: false, error: first ?? "Please check the form." };
   }
 
+  const offers = parseOffers(formData);
+  if (!offers.ok) return offers;
+
   const supabase = await createClient();
   const parentError = await validateParent(supabase, parsed.data.parent_event_id);
   if (parentError) return { ok: false, error: parentError };
 
-  const { error } = await supabase.from("events").insert(rowFromInput(parsed.data));
-  if (error) {
-    if (error.code === "23505")
+  const { data: created, error } = await supabase
+    .from("events")
+    .insert(rowFromInput(parsed.data))
+    .select("id")
+    .single();
+  if (error || !created) {
+    if (error?.code === "23505")
       return { ok: false, error: "That slug is already in use." };
     return { ok: false, error: "Could not create event." };
+  }
+  if (offers.offers.length > 0) {
+    const offerError = await saveOffers(supabase, (created as { id: string }).id, offers.offers);
+    if (offerError) {
+      revalidatePath("/admin/events");
+      return {
+        ok: false,
+        error: `Event created, but its offers weren't saved: ${offerError} Edit the event to add them.`,
+      };
+    }
   }
   revalidatePath("/admin/events");
   revalidatePath("/events");
@@ -211,6 +291,9 @@ export async function updateEvent(
     const first = Object.values(parsed.error.flatten().fieldErrors).flat()[0];
     return { ok: false, error: first ?? "Please check the form." };
   }
+
+  const offers = parseOffers(formData, id);
+  if (!offers.ok) return offers;
 
   const supabase = await createClient();
   const parentError = await validateParent(
@@ -237,6 +320,11 @@ export async function updateEvent(
     if (error.code === "23505")
       return { ok: false, error: "That slug is already in use." };
     return { ok: false, error: "Could not update event." };
+  }
+  const offerError = await saveOffers(supabase, id, offers.offers);
+  if (offerError) {
+    revalidatePath("/admin/events");
+    return { ok: false, error: `Event saved, but its offers weren't: ${offerError}` };
   }
   revalidatePath("/admin/events");
   revalidatePath(`/events/${parsed.data.slug}`);
