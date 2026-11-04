@@ -2,10 +2,22 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { CalendarDays, MapPin, ArrowUpRight, CreditCard } from "lucide-react";
+import {
+  CalendarDays,
+  MapPin,
+  ArrowUpRight,
+  CreditCard,
+  Clock,
+  RotateCcw,
+} from "lucide-react";
 import { EventThumb } from "@/components/events/category-visual";
 import { PaymentBadge, RegistrationBadge } from "@/components/ui/badge";
 import { cn, formatEventDate, formatINR } from "@/lib/utils";
+import {
+  formatHoldDeadline,
+  timedHoldDeadline,
+  type RegistrationState,
+} from "@/lib/payment-intent";
 import type { RegistrationWithEvent } from "@/types/database";
 
 /**
@@ -15,17 +27,26 @@ import type { RegistrationWithEvent } from "@/types/database";
 export function RegistrationFlipCard({
   registration,
 }: {
-  registration: RegistrationWithEvent;
+  registration: RegistrationWithEvent & { state?: RegistrationState | null };
 }) {
   const [flipped, setFlipped] = useState(false);
   const { event } = registration;
 
   const isTeamMember = !!registration.team_id && !registration.is_team_head;
+  const state = registration.state ?? null;
+  const expired = Boolean(state?.expired_intent);
+  const archived = Boolean(event.archived_at);
   const needsPayment =
     !isTeamMember &&
+    !expired &&
+    !archived &&
+    registration.registration_status !== "cancelled" &&
     (registration.payment_status === "unpaid" ||
+      registration.payment_status === "uploaded" ||
       registration.payment_status === "rejected" ||
       registration.payment_status === "duplicate");
+  const canRenew = expired && !archived;
+  const holdUntil = timedHoldDeadline(state);
 
   return (
     <div
@@ -116,6 +137,15 @@ export function RegistrationFlipCard({
             )}
           </dl>
 
+          {(holdUntil || expired) && (
+            <p className="mt-3 inline-flex items-center gap-1.5 text-xs text-muted">
+              <Clock className="size-3.5 shrink-0 text-brand" aria-hidden />
+              {holdUntil
+                ? `Seat held until ${formatHoldDeadline(holdUntil)}`
+                : "Seat hold expired — register again to renew"}
+            </p>
+          )}
+
           <div className="mt-auto flex gap-2 pt-4">
             {needsPayment && (
               <Link
@@ -124,6 +154,15 @@ export function RegistrationFlipCard({
                 className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-brand px-3 py-2 text-xs font-medium text-brand-contrast"
               >
                 <CreditCard className="size-3.5" /> Pay now
+              </Link>
+            )}
+            {canRenew && (
+              <Link
+                href={`/events/${event.slug}`}
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-brand px-3 py-2 text-xs font-medium text-brand-contrast"
+              >
+                <RotateCcw className="size-3.5" /> Renew
               </Link>
             )}
             {event.archived_at ? (

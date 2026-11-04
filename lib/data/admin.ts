@@ -44,7 +44,8 @@ export async function getAdminStats(): Promise<AdminStats> {
   const [users, registrations, verified, underReview, duplicates] =
     await Promise.all([
       countProfiles(),
-      countRegistrations({ column: "registration_status", neq: "cancelled" }),
+      // Confirmed registrations only — pending payment intents aren't totals.
+      countRegistrations({ column: "registration_status", eq: "confirmed" }),
       countRegistrations({ column: "payment_status", eq: "verified" }),
       countRegistrations({ column: "payment_status", eq: "under_review" }),
       countRegistrations({ column: "payment_status", eq: "duplicate" }),
@@ -62,7 +63,7 @@ export async function getAdminStats(): Promise<AdminStats> {
   const { data: regRows } = await supabase
     .from("registrations")
     .select("event:events(title)")
-    .neq("registration_status", "cancelled");
+    .eq("registration_status", "confirmed");
   const tally = new Map<string, number>();
   type JoinRow = { event: { title: string } | { title: string }[] | null };
   for (const r of (regRows ?? []) as unknown as JoinRow[]) {

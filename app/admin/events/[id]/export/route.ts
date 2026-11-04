@@ -53,6 +53,9 @@ export async function GET(
         "profile:profiles!profile_id(participant_id, full_name, email, phone, college, course, year)",
     )
     .eq("event_id", id)
+    // Confirmed participants only: pending payment intents, rejected and
+    // cancelled rows are not participants.
+    .eq("registration_status", "confirmed")
     .order("registered_at", { ascending: true });
 
   const rows: ExportRow[] = (data ?? []).map((r) => {

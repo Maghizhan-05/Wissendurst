@@ -8,7 +8,7 @@ import { requireScope, requireSuperAdmin } from "@/lib/auth";
 import { eventSchema, type EventInput } from "@/lib/validation/event";
 import {
   notifyApproval,
-  notifyPaymentConfirmed,
+  notifyRegistrationConfirmed,
   notifyRejection,
 } from "@/lib/email/notify";
 import {
@@ -361,6 +361,14 @@ export async function setPaymentStatus(
     return { ok: false, error: "Invalid request." };
 
   const supabase = await createClient();
+  const { data: before } = await supabase
+    .from("registrations")
+    .select("payment_status")
+    .eq("id", registrationId)
+    .maybeSingle();
+  const wasVerified =
+    (before as { payment_status: string } | null)?.payment_status === "verified";
+
   const { error } = await supabase.rpc("admin_set_payment_status", {
     p_registration_id: registrationId,
     p_status: status,
@@ -374,10 +382,11 @@ export async function setPaymentStatus(
   revalidatePath("/admin");
   revalidatePath("/dashboard/registrations");
 
-  // Notify the participant when their payment is verified.
-  if (status === "verified") {
+  // The registration confirmation goes out only now that payment is verified
+  // (to every member of a team), and only once.
+  if (status === "verified" && !wasVerified) {
     try {
-      await notifyPaymentConfirmed(registrationId);
+      await notifyRegistrationConfirmed(registrationId);
     } catch (e) {
       console.error("payment-confirmed email failed:", e);
     }

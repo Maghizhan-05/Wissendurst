@@ -4,11 +4,17 @@ import { useActionState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useEffect } from "react";
-import { Lock, Users } from "lucide-react";
+import { Clock, Lock, Users } from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { registerForEvent, type ActionResult } from "@/lib/actions/registration";
 import { TeamRegister } from "@/components/events/team-register";
 import { formatINR } from "@/lib/utils";
+import {
+  HOLD_HOURS,
+  formatHoldDeadline,
+  timedHoldDeadline,
+  type RegistrationState,
+} from "@/lib/payment-intent";
 import type { RegistrationRow } from "@/types/database";
 
 type TeamHead = {
@@ -19,7 +25,28 @@ type TeamHead = {
   college: string | null;
 };
 
-export function RegisterCta({
+type RegisterCtaProps = Parameters<typeof RegisterCtaBody>[0] & {
+  /** The user's previous payment intent expired and can be renewed. */
+  expiredIntent?: boolean;
+};
+
+export function RegisterCta({ expiredIntent = false, ...props }: RegisterCtaProps) {
+  if (!expiredIntent || props.existing) return <RegisterCtaBody {...props} />;
+  return (
+    <div className="flex flex-col gap-3">
+      <p
+        role="status"
+        className="rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-foreground"
+      >
+        Your previous {HOLD_HOURS}-hour seat hold expired before payment was
+        submitted. Register again to renew it — the current price applies.
+      </p>
+      <RegisterCtaBody {...props} />
+    </div>
+  );
+}
+
+function RegisterCtaBody({
   eventId,
   slug,
   isLoggedIn,
@@ -43,7 +70,8 @@ export function RegisterCta({
   isFull: boolean;
   fee: number;
   discountPaise?: number;
-  existing: RegistrationRow | null;
+  /** A live registration (cancelled rows / expired intents are passed as null). */
+  existing: (RegistrationRow & { state?: RegistrationState | null }) | null;
   teamEnabled?: boolean;
   teamMin?: number;
   teamMax?: number;
@@ -78,24 +106,38 @@ export function RegisterCta({
     }
     const needsPayment =
       existing.payment_status === "unpaid" ||
+      existing.payment_status === "uploaded" ||
       existing.payment_status === "rejected" ||
       existing.payment_status === "duplicate";
+    const holdUntil = timedHoldDeadline(existing.state ?? null);
     return (
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <ButtonLink
-          href={
-            needsPayment
-              ? `/dashboard/payment/${existing.id}`
-              : "/dashboard/registrations"
-          }
-          size="lg"
-          withArrow
-        >
-          {needsPayment ? "Complete Payment" : "View Registration"}
-        </ButtonLink>
-        <ButtonLink href="/events" size="lg" variant="outline">
-          Browse more
-        </ButtonLink>
+      <div className="flex flex-col gap-3">
+        {holdUntil && (
+          <p className="inline-flex items-center gap-2 text-sm text-muted">
+            <Clock className="size-4 text-brand" aria-hidden />
+            Your seat is held until{" "}
+            <span className="font-medium text-foreground">
+              {formatHoldDeadline(holdUntil)}
+            </span>{" "}
+            — pay and submit your UTR before then.
+          </p>
+        )}
+        <div className="flex flex-col gap-3 sm:flex-row">
+          <ButtonLink
+            href={
+              needsPayment
+                ? `/dashboard/payment/${existing.id}`
+                : "/dashboard/registrations"
+            }
+            size="lg"
+            withArrow
+          >
+            {needsPayment ? "Complete Payment" : "View Registration"}
+          </ButtonLink>
+          <ButtonLink href="/events" size="lg" variant="outline">
+            Browse more
+          </ButtonLink>
+        </div>
       </div>
     );
   }

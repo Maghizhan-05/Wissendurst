@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { notifyRegistration } from "@/lib/email/notify";
+import { notifyRegistrationConfirmed } from "@/lib/email/notify";
 import type { RegistrationRow } from "@/types/database";
 
 export type ActionResult = { ok: false; error: string } | { ok: true };
@@ -19,6 +19,7 @@ const RPC_ERRORS: Record<string, string> = {
   ALREADY_REGISTERED: "You're already registered for this event.",
   EVENT_FULL: "This event has reached capacity.",
   NOT_TEAM_EVENT: "This event isn't a team event.",
+  TEAM_EVENT: "This event needs a team — use the team registration form.",
   TEAM_TOO_SMALL: "Your team has fewer members than this event allows.",
   TEAM_TOO_LARGE: "Your team has more members than this event allows.",
   MEMBER_NOT_APPROVED:
@@ -94,11 +95,15 @@ export async function registerForEvent(formData: FormData): Promise<ActionResult
   revalidatePath("/dashboard/registrations");
   revalidatePath(`/events/${slug}`);
 
-  // Best-effort registration email (must run before redirect throws).
-  try {
-    await notifyRegistration(reg.id);
-  } catch (e) {
-    console.error("registration email failed:", e);
+  // A paid registration is only a payment intent: no confirmation email until
+  // an organizer verifies the payment. Free / fully discounted registrations
+  // are confirmed immediately. (Must run before redirect throws.)
+  if (reg.registration_status === "confirmed") {
+    try {
+      await notifyRegistrationConfirmed(reg.id);
+    } catch (e) {
+      console.error("registration email failed:", e);
+    }
   }
 
   if (reg.payment_status === "verified") {
@@ -153,14 +158,16 @@ export async function lookupTeamMember(
   if (p.approval_status !== "approved")
     return { ok: false, error: `${pid} isn't an approved participant yet.` };
 
-  const { data: existing } = await admin
-    .from("registrations")
-    .select("id")
-    .eq("event_id", eventId)
-    .eq("profile_id", p.id)
-    .neq("registration_status", "cancelled")
-    .maybeSingle();
-  if (existing)
+  // Cancelled rows and expired payment intents don't block a new team.
+  const { data: blocked, error: blockErr } = await admin.rpc(
+    "registration_blocks_new",
+    { p_profile_id: p.id, p_event_id: eventId },
+  );
+  if (blockErr) {
+    console.error("registration_blocks_new failed:", blockErr);
+    return { ok: false, error: "Couldn't check that participant. Try again." };
+  }
+  if (blocked === true)
     return { ok: false, error: `${pid} is already registered for this event.` };
 
   return {
@@ -220,10 +227,14 @@ export async function registerTeam(formData: FormData): Promise<ActionResult> {
   revalidatePath("/dashboard/registrations");
   revalidatePath(`/events/${slug}`);
 
-  try {
-    await notifyRegistration(reg.id);
-  } catch (e) {
-    console.error("team registration email failed:", e);
+  // Confirmation emails only for a free team (confirmed immediately); paid
+  // teams are emailed when the head's payment is verified.
+  if (reg.registration_status === "confirmed") {
+    try {
+      await notifyRegistrationConfirmed(reg.id);
+    } catch (e) {
+      console.error("team registration email failed:", e);
+    }
   }
 
   if (reg.payment_status === "verified") {

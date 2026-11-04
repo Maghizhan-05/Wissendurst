@@ -95,11 +95,11 @@ export function registrationEmail(
          <tr><td style="padding:6px 0;color:#627775;">Event</td><td style="padding:6px 0;text-align:right;font-weight:600;">${event.title}</td></tr>
          <tr><td style="padding:6px 0;color:#627775;">When</td><td style="padding:6px 0;text-align:right;">${when}</td></tr>
          <tr><td style="padding:6px 0;color:#627775;">Venue</td><td style="padding:6px 0;text-align:right;">${event.venue ?? "TBA"}</td></tr>
-         <tr><td style="padding:6px 0;color:#627775;">Fee</td><td style="padding:6px 0;text-align:right;">${paid ? "Free" : formatINR(amountPaise)}</td></tr>
+         <tr><td style="padding:6px 0;color:#627775;">Fee</td><td style="padding:6px 0;text-align:right;">${paid ? "No charge" : formatINR(amountPaise)}</td></tr>
        </table>
        <p style="line-height:1.6;color:#627775;">${
          paid
-           ? "This event is free — your spot is confirmed."
+           ? "No payment is due — your spot is confirmed."
            : "Next step: complete payment and upload your screenshot so organizers can verify your spot."
        }</p>`,
       paid

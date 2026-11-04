@@ -6,15 +6,15 @@ export interface EventCollection {
   event: EventRow;
   /** True when this event has sub-events (figures are its whole subtree). */
   isContainer: boolean;
-  /** Non-cancelled registrations across this event's subtree. */
+  /** Confirmed registrations across this event's subtree (intents excluded). */
   totalRegistrations: number;
   /** Registrations whose payment is verified (approved). */
   verifiedCount: number;
-  /** Registrations still awaiting a verified payment (non-cancelled). */
+  /** Payment intents currently holding a seat (72-hour hold or under review). */
   pendingCount: number;
   /** Money collected = sum of amounts on VERIFIED payments in the subtree. */
   collectedPaise: number;
-  /** Money owed by everyone currently registered in the subtree (bar's 100%). */
+  /** Collected + amounts of intents still holding a seat (bar's 100%). */
   expectedPaise: number;
   /** collected / expected, clamped 0–100. */
   progress: number;
@@ -37,6 +37,7 @@ export interface CollectionsSummary {
 }
 
 type Reg = {
+  id: string;
   event_id: string;
   amount: number | null;
   payment_status: string;
@@ -48,6 +49,7 @@ interface Metrics {
   verified: number;
   collected: number;
   expected: number;
+  pending: number;
 }
 
 /**
@@ -57,12 +59,20 @@ interface Metrics {
 export async function getEventCollections(): Promise<CollectionsSummary> {
   const supabase = await createClient();
 
-  const [eventsRes, regsRes] = await Promise.all([
+  const [eventsRes, regsRes, statesRes] = await Promise.all([
     supabase.from("events").select("*").order("event_date", { ascending: true }),
     supabase
       .from("registrations")
-      .select("event_id, amount, payment_status, registration_status"),
+      .select("id, event_id, amount, payment_status, registration_status"),
+    supabase.rpc("admin_registration_states"),
   ]);
+  if (statesRes.error)
+    console.error("admin_registration_states failed:", statesRes.error);
+  const holdsSeat = new Set(
+    ((statesRes.data ?? []) as { registration_id: string; holds_seat: boolean }[])
+      .filter((s) => s.holds_seat)
+      .map((s) => s.registration_id),
+  );
 
   const regsByEvent = new Map<string, Reg[]>();
   for (const r of (regsRes.data ?? []) as Reg[]) {
@@ -82,13 +92,18 @@ export async function getEventCollections(): Promise<CollectionsSummary> {
   }
 
   const directMetrics = (rows: Reg[]): Metrics => {
-    const active = rows.filter((r) => r.registration_status !== "cancelled");
-    const verified = active.filter((r) => r.payment_status === "verified");
+    const confirmed = rows.filter((r) => r.registration_status === "confirmed");
+    const verified = rows.filter((r) => r.payment_status === "verified");
+    const intents = rows.filter(
+      (r) => r.registration_status === "pending" && holdsSeat.has(r.id),
+    );
+    const collected = verified.reduce((s, r) => s + (r.amount ?? 0), 0);
     return {
-      total: active.length,
+      total: confirmed.length,
       verified: verified.length,
-      collected: verified.reduce((s, r) => s + (r.amount ?? 0), 0),
-      expected: active.reduce((s, r) => s + (r.amount ?? 0), 0),
+      collected,
+      expected: collected + intents.reduce((s, r) => s + (r.amount ?? 0), 0),
+      pending: intents.length,
     };
   };
 
@@ -103,6 +118,7 @@ export async function getEventCollections(): Promise<CollectionsSummary> {
       m.verified += c.verified;
       m.collected += c.collected;
       m.expected += c.expected;
+      m.pending += c.pending;
     }
     memo.set(id, m);
     return m;
@@ -115,7 +131,7 @@ export async function getEventCollections(): Promise<CollectionsSummary> {
       isContainer: (childrenOf.get(ev.id) ?? []).length > 0,
       totalRegistrations: m.total,
       verifiedCount: m.verified,
-      pendingCount: m.total - m.verified,
+      pendingCount: m.pending,
       collectedPaise: m.collected,
       expectedPaise: m.expected,
       progress:

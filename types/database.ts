@@ -81,6 +81,7 @@ export interface RegistrationRow {
   amount: number; // paise
   team_id: string | null; // set when this registration is part of a team
   is_team_head: boolean; // the member who registered & pays for the team
+  hold_expires_at: string | null; // seat hold deadline for unpaid/screenshot-only intents
   registered_at: string;
   verified_at: string | null;
   verified_by: string | null;

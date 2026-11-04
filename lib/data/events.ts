@@ -204,19 +204,27 @@ export async function getEventDiscounts(
     }
   }
 
-  const { data: regRows } = await supabase
-    .from("registrations")
-    .select("event_id, payment_status, registration_status")
-    .eq("profile_id", userId);
+  const [{ data: regRows }, { data: stateRows }] = await Promise.all([
+    supabase
+      .from("registrations")
+      .select("event_id, payment_status")
+      .eq("profile_id", userId),
+    supabase.rpc("my_registration_states"),
+  ]);
   const verified = new Set<string>();
-  const active = new Set<string>();
   for (const r of (regRows ?? []) as {
     event_id: string;
     payment_status: string;
-    registration_status: string;
   }[]) {
-    if (r.registration_status !== "cancelled") active.add(r.event_id);
     if (r.payment_status === "verified") verified.add(r.event_id);
+  }
+  // Live registrations (cancelled rows and expired intents can register again).
+  const active = new Set<string>();
+  for (const st of (stateRows ?? []) as {
+    event_id: string;
+    reusable: boolean;
+  }[]) {
+    if (!st.reusable) active.add(st.event_id);
   }
   if (verified.size === 0) return result;
 
@@ -316,18 +324,33 @@ export async function getAllEventSlugs(): Promise<string[]> {
   return (data ?? []).map((r) => (r as { slug: string }).slug);
 }
 
-/** Count of active (non-cancelled) registrations per event id. */
-export async function getEventRegistrationCounts(): Promise<
-  Record<string, number>
+export interface EventCapacityCount {
+  /** Confirmed registrations + live payment-intent holds (capacity use). */
+  seatsTaken: number;
+  /** Confirmed registrations only (intents excluded). */
+  confirmed: number;
+}
+
+/**
+ * Capacity use per event id, computed in the database so public visitors get
+ * correct aggregate numbers without being able to read other people's rows.
+ */
+export async function getEventCapacityCounts(): Promise<
+  Record<string, EventCapacityCount>
 > {
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("registrations")
-    .select("event_id")
-    .neq("registration_status", "cancelled");
-  const counts: Record<string, number> = {};
-  for (const row of (data ?? []) as { event_id: string }[]) {
-    counts[row.event_id] = (counts[row.event_id] ?? 0) + 1;
+  const { data, error } = await supabase.rpc("event_capacity_counts");
+  if (error) console.error("event_capacity_counts failed:", error);
+  const counts: Record<string, EventCapacityCount> = {};
+  for (const row of (data ?? []) as {
+    event_id: string;
+    seats_taken: number;
+    confirmed: number;
+  }[]) {
+    counts[row.event_id] = {
+      seatsTaken: row.seats_taken,
+      confirmed: row.confirmed,
+    };
   }
   return counts;
 }

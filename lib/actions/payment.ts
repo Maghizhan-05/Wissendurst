@@ -10,7 +10,33 @@ import {
   SCREENSHOT_MAX_BYTES,
   type PaymentStatus,
 } from "@/lib/constants";
+import { paymentBlockReason } from "@/lib/payment-intent";
 import type { RegistrationRow } from "@/types/database";
+
+const SUBMIT_ERRORS: Record<string, string> = {
+  AUTH_REQUIRED: "Please sign in again.",
+  REGISTRATION_NOT_FOUND: "Registration not found.",
+  FORBIDDEN: "Registration not found.",
+  TEAM_HEAD_PAYS: "Your team head completes the payment for your team.",
+  EVENT_ARCHIVED:
+    "This event has been archived, so new payments can't be submitted.",
+  REGISTRATION_CANCELLED:
+    "This registration was cancelled. Register again to take part.",
+  ALREADY_PAID: "This registration is already paid and confirmed.",
+  HOLD_EXPIRED:
+    "Your seat hold expired. Register for the event again to renew it, then submit your payment.",
+  EVENT_FULL:
+    "This event filled up while your payment was rejected, so it can't be resubmitted.",
+};
+
+function mapSubmitError(message: string | undefined): string {
+  if (message) {
+    for (const key of Object.keys(SUBMIT_ERRORS)) {
+      if (message.includes(key)) return SUBMIT_ERRORS[key];
+    }
+  }
+  return "Could not submit payment.";
+}
 
 export type AnalyzeResult =
   | { ok: false; error: string }
@@ -51,14 +77,42 @@ export async function analyzeScreenshot(
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Please sign in again." };
 
-  // Confirm the registration is the caller's (RLS scopes this select).
-  const { data: reg } = await supabase
-    .from("registrations")
-    .select("id, profile_id")
-    .eq("id", registrationId)
-    .maybeSingle();
-  if (!reg || (reg as { profile_id: string }).profile_id !== user.id)
+  // Confirm the registration is the caller's (RLS scopes this select) and
+  // that a payment can be submitted at all before storing anything.
+  const [{ data: reg }, { data: states }] = await Promise.all([
+    supabase
+      .from("registrations")
+      .select(
+        "id, profile_id, team_id, is_team_head, registration_status, payment_status, event:events(archived_at)",
+      )
+      .eq("id", registrationId)
+      .maybeSingle(),
+    supabase.rpc("my_registration_states"),
+  ]);
+  const row = reg as
+    | (Pick<
+        RegistrationRow,
+        | "id"
+        | "profile_id"
+        | "team_id"
+        | "is_team_head"
+        | "registration_status"
+        | "payment_status"
+      > & { event: { archived_at: string | null } | null })
+    | null;
+  if (!row || row.profile_id !== user.id)
     return { ok: false, error: "Registration not found." };
+  const state =
+    ((states ?? []) as { registration_id: string; expired_intent: boolean }[]).find(
+      (s) => s.registration_id === registrationId,
+    ) ?? null;
+  const block = paymentBlockReason(row, state, Boolean(row.event?.archived_at));
+  if (block === "team_member") return { ok: false, error: SUBMIT_ERRORS.TEAM_HEAD_PAYS };
+  if (block === "archived") return { ok: false, error: SUBMIT_ERRORS.EVENT_ARCHIVED };
+  if (block === "cancelled")
+    return { ok: false, error: SUBMIT_ERRORS.REGISTRATION_CANCELLED };
+  if (block === "paid") return { ok: false, error: SUBMIT_ERRORS.ALREADY_PAID };
+  if (block === "expired") return { ok: false, error: SUBMIT_ERRORS.HOLD_EXPIRED };
 
   const buffer = Buffer.from(await file.arrayBuffer());
   const ext = EXT[file.type] ?? "png";
@@ -73,13 +127,17 @@ export async function analyzeScreenshot(
 
   // Persist the screenshot + OCR immediately (status 'uploaded'), even if the
   // user abandons before confirming a transaction id.
-  await supabase.rpc("submit_payment", {
+  const { error: submitErr } = await supabase.rpc("submit_payment", {
     p_registration_id: registrationId,
     p_transaction_id: null,
     p_screenshot: path,
     p_ocr_raw: ocr.raw || null,
     p_ocr_conf: ocr.confidence || null,
   });
+  if (submitErr) {
+    console.error("submit_payment (screenshot) failed:", submitErr);
+    return { ok: false, error: mapSubmitError(submitErr.message) };
+  }
 
   revalidatePath(`/dashboard/payment/${registrationId}`);
   return { ok: true, ref: ocr.ref, confidence: ocr.confidence, path };
@@ -107,7 +165,10 @@ export async function confirmPayment(
     p_ocr_conf: null,
   });
 
-  if (error) return { ok: false, error: "Could not submit payment." };
+  if (error) {
+    console.error("submit_payment failed:", error);
+    return { ok: false, error: mapSubmitError(error.message) };
+  }
 
   const reg = (Array.isArray(data) ? data[0] : data) as RegistrationRow;
   revalidatePath(`/dashboard/payment/${registrationId}`);

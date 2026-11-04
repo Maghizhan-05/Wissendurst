@@ -23,7 +23,7 @@ import {
   getSubEvents,
   getSubEventCounts,
   getEventAncestors,
-  getEventRegistrationCounts,
+  getEventCapacityCounts,
   getEventDiscount,
   getEventDiscounts,
 } from "@/lib/data/events";
@@ -131,7 +131,7 @@ export default async function EventPage({
   const [profile, existing, counts, ancestors] = await Promise.all([
     getProfile(),
     getMyRegistrationForEvent(event.id),
-    getEventRegistrationCounts(),
+    getEventCapacityCounts(),
     getEventAncestors(event),
   ]);
 
@@ -140,7 +140,12 @@ export default async function EventPage({
     ? 0
     : await getEventDiscount(event, profile?.id ?? null);
 
-  const taken = counts[event.id] ?? 0;
+  // Capacity use = confirmed registrations + live 72-hour payment-intent holds.
+  const taken = counts[event.id]?.seatsTaken ?? 0;
+  // Cancelled rows and expired intents don't block registering again.
+  const activeRegistration =
+    existing && !existing.state?.reusable ? existing : null;
+  const expiredIntent = Boolean(existing?.state?.expired_intent);
   const isFull =
     event.max_participants != null && taken >= event.max_participants;
   const spotsLeft =
@@ -230,7 +235,8 @@ export default async function EventPage({
                 isFull={isFull}
                 fee={event.registration_fee}
                 discountPaise={discountPaise}
-                existing={existing}
+                existing={activeRegistration}
+                expiredIntent={expiredIntent}
                 teamEnabled={event.team_enabled}
                 teamMin={event.team_min}
                 teamMax={event.team_max}
