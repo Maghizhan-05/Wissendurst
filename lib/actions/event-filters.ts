@@ -37,6 +37,8 @@ export async function saveEventFilterConfig(
     if (error.message?.includes("INVALID_FILTER_CONFIG")) {
       if (error.details === "ARCHIVED_CATEGORY")
         return { ok: false, error: "An archived category can't be added to a group. Restore it first." };
+      if (error.details === "GROUP_SLUG_SHADOWS_CATEGORY")
+        return { ok: false, error: "A tab slug matches a category's slug, which would hide that category's link. Pick another slug." };
       if (error.details === "UNKNOWN_CATEGORY")
         return { ok: false, error: "A category in this configuration no longer exists. Reload and try again." };
       return { ok: false, error: `The database rejected this configuration (${error.details ?? "invalid"}).` };

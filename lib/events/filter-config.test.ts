@@ -7,6 +7,7 @@ import {
   matchesFilter,
   resolveActiveFilter,
   resolveEventFilterConfig,
+  shadowedCategory,
   slugifyLabel,
   unassignedCategories,
   validateEventFilterConfig,
@@ -163,4 +164,22 @@ test("validation rejects duplicates, bad slugs, limits, ordering and unknown cat
 test("slugifyLabel produces valid slugs", () => {
   assert.equal(slugifyLabel("Poster & Paper Presentations"), "poster-paper-presentations");
   assert.equal(slugifyLabel("  Café  Talks! "), "cafe-talks");
+});
+
+test("tab slugs can't newly hide a category's link (existing ones are kept)", () => {
+  // live shape: tab "workshop" shows Poster Presentation
+  const live = cfg([{ id: "workshop", slug: "quizzes", categories: [id("workshop")] }, { id: "poster", slug: "workshop", label: "Workshops", categories: [id("poster")] }]);
+  assert.equal(shadowedCategory(live.groups[1], CATS)?.slug, "workshop");
+  assert.equal(shadowedCategory(live.groups[0], CATS), null);
+  assert.ok(validateEventFilterConfig(live, { categories: CATS }).ok, "public read accepts it");
+  assert.ok(validateEventFilterConfig(live, { categories: CATS, previous: live }).ok, "re-save keeps the existing slug");
+  assert.equal(validateEventFilterConfig(live, { categories: CATS, previous: null }).ok, false, "new collision refused");
+  const taken = cfg([{ id: "workshop", slug: "debate", categories: [id("workshop")] }]);
+  const r = validateEventFilterConfig(taken, { categories: CATS, previous: live });
+  assert.equal(r.ok, false);
+  if (!r.ok) assert.match(r.error, /belongs to the category “Debate”/);
+  // exactly that one category: no shadowing
+  const exact = cfg([{ id: "papers", slug: "paper", categories: [id("paper")] }]);
+  assert.ok(validateEventFilterConfig(exact, { categories: CATS, previous: null }).ok);
+  assert.ok(validateEventFilterConfig(DEFAULT, { categories: CATS, previous: null }).ok, "default never shadows");
 });

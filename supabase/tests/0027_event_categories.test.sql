@@ -6,6 +6,7 @@
 grant all on all tables in schema public to anon, authenticated, service_role;
 grant execute on all functions in schema public to anon, authenticated;
 \ir ../migrations/0027_event_categories.sql
+\ir ../migrations/0028_category_link_guards.sql
 
 create or replace function pg_temp.expect_error(p_sql text, p_needle text) returns text
 language plpgsql as $$
@@ -236,6 +237,7 @@ create temp table before_rerun as
          (select config from public.event_filter_config) cfg,
          (select string_agg(slug || ':' || category, ',' order by slug) from public.events) evs;
 \ir ../migrations/0027_event_categories.sql
+\ir ../migrations/0028_category_link_guards.sql
 select pg_temp.check((select cats = (select jsonb_agg(to_jsonb(c) order by id) from public.event_categories c)
                         and cfg = (select config from public.event_filter_config)
                         and evs = (select string_agg(slug || ':' || category, ',' order by slug) from public.events)

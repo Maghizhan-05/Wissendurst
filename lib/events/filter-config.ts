@@ -124,6 +124,18 @@ export function validateEventFilterConfig(raw: unknown, ctx: FilterValidationCon
   if (ctx.categories) {
     const byId = new Map(ctx.categories.map((c) => [c.id, c]));
     for (const g of config.groups) {
+      // Saving: a tab may not newly take a category's slug (tabs resolve first,
+      // so its ?category= link would be hidden) unless it shows exactly that
+      // category; a tab that already had the slug keeps it.
+      if (ctx.previous !== undefined) {
+        const shadowed = shadowedCategory(g, ctx.categories);
+        const before = ctx.previous?.groups.find((p) => p.id === g.id);
+        if (shadowed && before?.slug !== g.slug)
+          return {
+            ok: false,
+            error: `Slug “${g.slug}” belongs to the category “${shadowed.label}”; pick another slug for “${g.label}”`,
+          };
+      }
       for (const id of g.categories) {
         const c = byId.get(id);
         if (!c) return { ok: false, error: `“${g.label}” refers to a category that no longer exists` };
@@ -136,6 +148,16 @@ export function validateEventFilterConfig(raw: unknown, ctx: FilterValidationCon
     }
   }
   return { ok: true, config };
+}
+
+/** The category whose `?category=` link this tab's slug would hide, if any. */
+export function shadowedCategory(
+  group: FilterGroup,
+  categories: readonly EventCategoryInfo[],
+): EventCategoryInfo | null {
+  const c = categories.find((x) => x.slug === group.slug);
+  if (!c) return null;
+  return group.categories.length === 1 && group.categories[0] === c.id ? null : c;
 }
 
 /** Public read: stored config if valid, otherwise the default (never throws). */

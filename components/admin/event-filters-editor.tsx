@@ -14,6 +14,7 @@ import {
   MAX_FILTER_GROUPS,
   MAX_FILTER_LABEL,
   MAX_FILTER_SLUG,
+  shadowedCategory,
   slugifyLabel,
   unassignedCategories,
   validateEventFilterConfig,
@@ -192,6 +193,7 @@ function GroupRow({
     if (confirming) cancelRef.current?.focus();
   }, [confirming]);
   const active = activeCategories(categories);
+  const shadowed = shadowedCategory(g, categories);
   const order = new Map(categories.map((c, i) => [c.id, i]));
   // Archived categories this group still references: shown, removable, not re-addable.
   const archivedHere = categories.filter((c) => c.archived_at && g.categories.includes(c.id));
@@ -266,6 +268,12 @@ function GroupRow({
           <p id={`${id}-sh`} className="mt-1 text-xs text-muted">
             Link: /events?category={g.slug || "…"}
           </p>
+          {shadowed && (
+            <p className="mt-1 text-xs text-warning">
+              This slug is also the category &ldquo;{shadowed.label}&rdquo;, so its links open this tab instead.
+              {" "}New tabs can&rsquo;t take a category&rsquo;s slug.
+            </p>
+          )}
         </div>
       </div>
 

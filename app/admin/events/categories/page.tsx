@@ -62,7 +62,7 @@ export default async function AdminEventCategoriesPage() {
           category in use.
         </p>
       )}
-      <CategoryManager categories={categories} usage={usage} />
+      <CategoryManager categories={categories} usage={usage} tabSlugs={groups.map((g) => g.slug)} />
     </div>
   );
 }

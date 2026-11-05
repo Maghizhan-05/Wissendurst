@@ -12,6 +12,8 @@ const ERRORS: Record<string, string> = {
   INVALID_CATEGORY_SLUG: "The slug may use lowercase letters, digits and single hyphens (and can't be “all”).",
   CATEGORY_SLUG_TAKEN: "Another category already uses that slug.",
   CATEGORY_LABEL_TAKEN: "Another category already has that name.",
+  CATEGORY_SLUG_USED_BY_FILTER_TAB:
+    "A filter tab already uses that slug, so the category's link would open the tab instead. Choose another slug.",
   INVALID_CATEGORY_LABEL: "Use a name of 1–40 characters without leading or trailing spaces.",
   INVALID_CATEGORY_ICON: "Choose an icon from the list.",
   INVALID_CATEGORY_COLOR: "Choose a tint from the list.",

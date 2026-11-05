@@ -106,9 +106,12 @@ function StyleFields({
 export function CategoryManager({
   categories,
   usage,
+  tabSlugs,
 }: {
   categories: EventCategoryInfo[];
   usage: Record<string, CategoryUsage>;
+  /** Filter-tab slugs (a new category can't reuse one). */
+  tabSlugs: string[];
 }) {
   const [order, setOrder] = useState(categories.map((c) => c.id));
   const [pending, startTransition] = useTransition();
@@ -143,7 +146,11 @@ export function CategoryManager({
 
   return (
     <div className="space-y-6">
-      <NewCategoryForm full={categories.length >= MAX_EVENT_CATEGORIES} taken={categories.map((c) => c.slug)} />
+      <NewCategoryForm
+        full={categories.length >= MAX_EVENT_CATEGORIES}
+        taken={categories.map((c) => c.slug)}
+        tabSlugs={tabSlugs}
+      />
 
       <Card className="space-y-3">
         <h2 className="font-display text-lg font-semibold text-foreground">
@@ -174,7 +181,7 @@ export function CategoryManager({
   );
 }
 
-function NewCategoryForm({ full, taken }: { full: boolean; taken: string[] }) {
+function NewCategoryForm({ full, taken, tabSlugs }: { full: boolean; taken: string[]; tabSlugs: string[] }) {
   const id = useId();
   const [state, action, pending] = useActionState<AdminActionState, FormData>(createEventCategory, null);
   const [label, setLabel] = useState("");
@@ -194,6 +201,7 @@ function NewCategoryForm({ full, taken }: { full: boolean; taken: string[] }) {
   }
   const effectiveSlug = slugEdited ? slug : slugifyLabel(label, MAX_CATEGORY_SLUG);
   const clash = taken.includes(effectiveSlug);
+  const tabClash = !clash && tabSlugs.includes(effectiveSlug);
 
   return (
     <Card className="space-y-4">
@@ -225,15 +233,17 @@ function NewCategoryForm({ full, taken }: { full: boolean; taken: string[] }) {
                 required
                 className="font-mono"
                 aria-describedby={`${id}-slug-hint`}
-                aria-invalid={clash || undefined}
+                aria-invalid={clash || tabClash || undefined}
                 onChange={(e) => {
                   setSlugEdited(true);
                   setSlug(e.target.value.toLowerCase());
                 }}
               />
-              <p id={`${id}-slug-hint`} className={cn("mt-1 text-xs", clash ? "text-alert" : "text-muted")}>
+              <p id={`${id}-slug-hint`} className={cn("mt-1 text-xs", clash || tabClash ? "text-alert" : "text-muted")}>
                 {clash
                   ? "Another category already uses this slug."
+                  : tabClash
+                    ? "A filter tab uses this slug, so the link would open that tab. Choose another."
                   : `Link: /events?category=${effectiveSlug || "…"} — can't be changed after creating.`}
               </p>
             </div>
@@ -243,7 +253,7 @@ function NewCategoryForm({ full, taken }: { full: boolean; taken: string[] }) {
             <span className="inline-flex items-center gap-2 text-sm text-muted">
               <Swatch icon={icon} color={color} /> Preview
             </span>
-            <Button type="submit" loading={pending} disabled={!label.trim() || !effectiveSlug || clash}>
+            <Button type="submit" loading={pending} disabled={!label.trim() || !effectiveSlug || clash || tabClash}>
               Add category
             </Button>
           </div>

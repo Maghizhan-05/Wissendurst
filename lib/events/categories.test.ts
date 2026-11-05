@@ -2,6 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { DEFAULT_LANDING } from "../content/landing.ts";
 import {
   CATEGORY_COLORS,
   CATEGORY_COLOR_KEYS,
@@ -72,4 +73,14 @@ test("homepage category-link detection", () => {
 test("sanitizeCategories drops malformed rows and sorts by position", () => {
   const rows = sanitizeCategories([{ id: "b", slug: "b", label: "B", position: 2 }, null, { slug: "x" }, { id: "a", slug: "a", label: "A", position: 1, archived_at: "t" }]);
   assert.deepEqual(rows.map((r) => [r.slug, r.archived_at]), [["a", "t"], ["b", null]]);
+});
+
+test("0028's built-in homepage box slugs match DEFAULT_LANDING", () => {
+  const sql28 = readFileSync(new URL("../../supabase/migrations/0028_category_link_guards.sql", import.meta.url), "utf8");
+  const at = sql28.indexOf("homepage_default_category_slugs()\nreturns");
+  const body = sql28.slice(sql28.indexOf("array[", at) + 6, sql28.indexOf("]", sql28.indexOf("array[", at)));
+  const sqlSlugs = [...body.matchAll(/'([^']+)'/g)].map((m) => m[1]);
+  const tsSlugs = DEFAULT_LANDING.categories.boxes.flatMap((b) => [...b.href.matchAll(/[?&]category=([a-z0-9-]+)/g)].map((m) => m[1]));
+  assert.ok(tsSlugs.length > 0);
+  assert.deepEqual(sqlSlugs, tsSlugs);
 });

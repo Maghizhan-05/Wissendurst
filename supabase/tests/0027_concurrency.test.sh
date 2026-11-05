@@ -14,6 +14,7 @@ run() { $PSQL_CMD -t -A -v ON_ERROR_STOP=1 "$@"; }
 pass() { echo "PASS $1"; }
 fail() { echo "FAIL: $1"; exit 1; }
 MIG="$(cd "$(dirname "$0")/.." && pwd)/migrations/0027_event_categories.sql"
+MIG28="$(cd "$(dirname "$0")/.." && pwd)/migrations/0028_category_link_guards.sql"
 ADMIN=00000000-0000-0000-0000-000000001601
 
 run >/dev/null -c "grant all on all tables in schema public to anon, authenticated, service_role" \
@@ -39,6 +40,7 @@ SQL
 # M1
 put_legacy "$LIVE"
 run >/dev/null 2>&1 --single-transaction -f "$MIG" || fail "M1: migration failed on the live configuration"
+run >/dev/null 2>&1 --single-transaction -f "$MIG28" || fail "M1: 0028 rejected the converted live configuration"
 res=$(run -v cfg="$LIVE" <<'SQL'
 with old as (select :'cfg'::jsonb c), new as (select config c, updated_at from public.event_filter_config)
 select (select jsonb_agg(g - 'categories' order by o) from new, jsonb_array_elements(new.c->'groups') with ordinality t(g, o))
@@ -63,6 +65,7 @@ grep -q UNRESOLVED_FILTER_CATEGORY <<<"$out" || fail "M2: wrong error: $out"
 after=$(run -c "select md5(config::text) || md5((select string_agg(slug, ',') from public.event_categories)) from public.event_filter_config")
 [ "$before" = "$after" ] && pass "M2: unresolvable reference aborts and rolls back" || fail "M2: state changed"
 put_legacy '{"allLabel":"All","groups":[]}'
+run >/dev/null 2>&1 -f "$MIG28"
 
 run >/dev/null <<SQL
 insert into auth.users (id, email) values ('$ADMIN', 'c@x.test');
