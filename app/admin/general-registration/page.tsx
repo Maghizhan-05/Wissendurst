@@ -12,6 +12,7 @@ import {
 } from "@/lib/data/general-registration";
 import { createClient } from "@/lib/supabase/server";
 import { defaultUpiId } from "@/lib/payment";
+import { getDefaultEventUpiId } from "@/lib/data/payment-settings";
 import { requireScope } from "@/lib/auth";
 import { formatINR } from "@/lib/utils";
 
@@ -28,8 +29,9 @@ export default async function AdminGeneralRegistrationPage() {
     listGeneralRegistrations(),
     supabase.from("events").select("upi_id").not("upi_id", "is", null),
   ]);
+  const storedDefault = await getDefaultEventUpiId();
   const eventUpiIds = Array.from(
-    new Set([defaultUpiId(), ...((upis ?? []) as { upi_id: string }[]).map((u) => u.upi_id.trim())].filter(Boolean)),
+    new Set([storedDefault, defaultUpiId(), ...((upis ?? []) as { upi_id: string }[]).map((u) => u.upi_id.trim())].filter(Boolean)),
   );
   const queue = records.filter((r) => REVIEW.has(r.status));
   const verified = records.filter((r) => r.status === "verified").length;

@@ -26,7 +26,9 @@ end $$;
 -- migration's revokes must win, so grant first and re-run 0022.
 grant all on all tables in schema public to anon, authenticated, service_role;
 grant execute on all functions in schema public to anon, authenticated;
+drop function if exists public.set_my_profile_photo(text);  -- 0026 changed its signature
 \ir ../migrations/0022_profile_update_lockdown.sql
+\ir ../migrations/0026_review_hardening.sql
 
 insert into auth.users (id, email) values
   ('00000000-0000-0000-0000-000000000701', 'p@x.test'),
@@ -70,14 +72,17 @@ select pg_temp.check((select approval_status = 'pending' from public.profiles wh
   '2: self-approval impossible (still pending)');
 
 -- ── 3. legitimate edits through the RPCs ───────────────────────────────────
+insert into storage.objects (bucket_id, name, owner)
+values ('profile-images', '00000000-0000-0000-0000-000000000701/avatar-1.png', '00000000-0000-0000-0000-000000000701'),
+       ('profile-images', '00000000-0000-0000-0000-000000000702/b.png', '00000000-0000-0000-0000-000000000702');
 set role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000701', false);
 select public.update_my_profile('  Asha Rao ', '+91 98765 43210', 'Govt Medical College', 'MBBS', '3rd year');
-select public.set_my_profile_photo('https://abc.supabase.co/storage/v1/object/public/profile-images/00000000-0000-0000-0000-000000000701/avatar-1.png');
+select public.set_my_profile_photo('00000000-0000-0000-0000-000000000701/avatar-1.png');
 reset role;
 select pg_temp.check((select full_name = 'Asha Rao' and phone = '+91 98765 43210' and college = 'Govt Medical College'
                         and course = 'MBBS' and year = '3rd year'
-                        and profile_photo like 'https://abc.supabase.co/storage/v1/object/public/profile-images/00000000-0000-0000-0000-000000000701/%'
+                        and profile_photo = '00000000-0000-0000-0000-000000000701/avatar-1.png'
                       from public.profiles where id = '00000000-0000-0000-0000-000000000701'), '3: valid profile + photo edits saved');
 select pg_temp.check((select p.approval_status = b.approval_status and p.role = b.role and p.admin_scopes = b.admin_scopes
                         and p.is_super_admin = b.is_super_admin and p.participant_id is not distinct from b.participant_id
@@ -90,11 +95,14 @@ select pg_temp.expect_error($q$select public.update_my_profile('A', '+91 98765 4
 select pg_temp.expect_error($q$select public.update_my_profile('Asha', 'call me', 'Govt Medical College', 'MBBS', '3')$q$, 'INVALID_PROFILE');
 select pg_temp.expect_error($q$select public.update_my_profile('Asha', '9876543210', '', 'MBBS', '3')$q$, 'INVALID_PROFILE');
 select pg_temp.expect_error($q$select public.update_my_profile(repeat('a', 81), '9876543210', 'GMC', 'MBBS', '3')$q$, 'INVALID_PROFILE');
-select pg_temp.expect_error($q$select public.set_my_profile_photo('https://abc.supabase.co/storage/v1/object/public/profile-images/00000000-0000-0000-0000-000000000702/a.png')$q$, 'INVALID_PHOTO_URL');
-select pg_temp.expect_error($q$select public.set_my_profile_photo('javascript:alert(1)')$q$, 'INVALID_PHOTO_URL');
-select pg_temp.expect_error($q$select public.set_my_profile_photo('http://abc.supabase.co/storage/v1/object/public/profile-images/00000000-0000-0000-0000-000000000701/a.png')$q$, 'INVALID_PHOTO_URL');
-select pg_temp.expect_error($q$select public.set_my_profile_photo('https://abc.supabase.co/storage/v1/object/public/payment-screenshots/00000000-0000-0000-0000-000000000701/a.png')$q$, 'INVALID_PHOTO_URL');
-select pg_temp.expect_error($q$select public.set_my_profile_photo('https://abc.supabase.co/storage/v1/object/public/profile-images/00000000-0000-0000-0000-000000000701/../x.png')$q$, 'INVALID_PHOTO_URL');
+-- photo = storage object path in the caller's own profile-images folder (0026)
+select pg_temp.expect_error($q$select public.set_my_profile_photo('https://evil.example/storage/v1/object/public/profile-images/00000000-0000-0000-0000-000000000701/a.png')$q$, 'INVALID_PHOTO_PATH');
+select pg_temp.expect_error($q$select public.set_my_profile_photo('https://abc.supabase.co/storage/v1/object/public/profile-images/00000000-0000-0000-0000-000000000701/avatar-1.png')$q$, 'INVALID_PHOTO_PATH');
+select pg_temp.expect_error($q$select public.set_my_profile_photo('00000000-0000-0000-0000-000000000702/b.png')$q$, 'INVALID_PHOTO_PATH');
+select pg_temp.expect_error($q$select public.set_my_profile_photo('00000000-0000-0000-0000-000000000701/../702/b.png')$q$, 'INVALID_PHOTO_PATH');
+select pg_temp.expect_error($q$select public.set_my_profile_photo('00000000-0000-0000-0000-000000000701/sub/b.png')$q$, 'INVALID_PHOTO_PATH');
+select pg_temp.expect_error($q$select public.set_my_profile_photo('javascript:alert(1)')$q$, 'INVALID_PHOTO_PATH');
+select pg_temp.expect_error($q$select public.set_my_profile_photo('00000000-0000-0000-0000-000000000701/never-uploaded.png')$q$, 'PHOTO_NOT_UPLOADED');
 select public.set_my_profile_photo(null);
 reset role;
 select pg_temp.check((select profile_photo is null from public.profiles where id = '00000000-0000-0000-0000-000000000701'), '3: photo can be removed');

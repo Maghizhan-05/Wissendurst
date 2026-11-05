@@ -8,7 +8,8 @@ import { PaymentBadge } from "@/components/ui/badge";
 import { requireProfile } from "@/lib/auth";
 import { getMyRegistration } from "@/lib/data/registrations";
 import { resolveEventUpiId } from "@/lib/data/events";
-import { upiQrDataUrl, defaultUpiId } from "@/lib/payment";
+import { upiQrDataUrl } from "@/lib/payment";
+import { getDefaultEventUpiId } from "@/lib/data/payment-settings";
 import { formatINR } from "@/lib/utils";
 import {
   HOLD_HOURS,
@@ -62,7 +63,7 @@ export default async function PaymentPage({ params }: PageProps<"/dashboard/paym
   const holdUntil = timedHoldDeadline(registration.state);
   const underReview = registration.state?.effective_payment_status === "under_review";
   const note = `WD27 ${profile.participant_id} ${event.slug}`.slice(0, 40);
-  const upiId = (await resolveEventUpiId(event)) ?? defaultUpiId();
+  const upiId = (await resolveEventUpiId(event)) ?? (await getDefaultEventUpiId());
   const qr = await upiQrDataUrl(registration.amount, note, upiId);
   const payee = process.env.NEXT_PUBLIC_UPI_PAYEE_NAME ?? "Wissendurst 27";
   // Frozen at intent creation (0019). Legacy rows have no list price stored.

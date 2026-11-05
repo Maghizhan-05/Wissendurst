@@ -296,20 +296,31 @@ export async function updateEvent(
   if (!offers.ok) return offers;
 
   const supabase = await createClient();
-  const parentError = await validateParent(
-    supabase,
-    parsed.data.parent_event_id,
-    id,
-  );
-  if (parentError) return { ok: false, error: parentError };
-
-  const row = rowFromInput(parsed.data);
-  const { data: current } = await supabase
+  const { data: currentRow } = await supabase
     .from("events")
-    .select("archived_at")
+    .select("archived_at, parent_event_id")
     .eq("id", id)
     .maybeSingle();
-  if ((current as { archived_at: string | null } | null)?.archived_at) {
+  const current = currentRow as { archived_at: string | null; parent_event_id: string | null } | null;
+  if (!current) return { ok: false, error: "That event no longer exists." };
+  const submittedParent = parsed.data.parent_event_id || null;
+
+  if (current.archived_at) {
+    // An archived event's place in the hierarchy is frozen (archive/restore
+    // works on whole subtrees); never change it implicitly.
+    if (submittedParent !== current.parent_event_id)
+      return {
+        ok: false,
+        error: "An archived event can't be moved to a different broader event. Restore it first.",
+      };
+  } else {
+    const parentError = await validateParent(supabase, submittedParent ?? "", id);
+    if (parentError) return { ok: false, error: parentError };
+  }
+
+  const row = rowFromInput(parsed.data);
+  if (current.archived_at) {
+    row.parent_event_id = current.parent_event_id;
     // Archived events stay closed and unfeatured until restored.
     row.registration_open = false;
     row.featured = false;

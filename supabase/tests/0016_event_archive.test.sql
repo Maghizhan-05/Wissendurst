@@ -53,9 +53,13 @@ select pg_temp.expect_error($q$select public.admin_set_event_archived('10000000-
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-00000000000a',false);
 select pg_temp.expect_error($q$select public.admin_delete_event('10000000-0000-0000-0000-000000000002')$q$, 'EVENT_HAS_HISTORY');
 select pg_temp.expect_error($q$select public.admin_delete_event('10000000-0000-0000-0000-000000000001')$q$, 'EVENT_HAS_HISTORY');
--- direct table delete (RLS permits events admins) must still be blocked by FK RESTRICT
-select pg_temp.expect_error($q$delete from public.events where id='10000000-0000-0000-0000-000000000001'$q$, 'violates foreign key constraint');
+-- direct table delete by a client role is refused outright (0026) ...
+select pg_temp.expect_error($q$delete from public.events where id='10000000-0000-0000-0000-000000000001'$q$, 'EVENT_DELETE_VIA_RPC');
+select pg_temp.expect_error($q$delete from public.events where id='10000000-0000-0000-0000-000000000002'$q$, 'EVENT_DELETE_VIA_RPC');
+-- ... and FK RESTRICT still protects history from privileged deletes
+reset role;
 select pg_temp.expect_error($q$delete from public.events where id='10000000-0000-0000-0000-000000000002'$q$, 'violates foreign key constraint');
+set role authenticated;
 select pg_temp.check((select count(*) from public.registrations) = 1, 'registration history intact after delete attempts');
 select public.admin_delete_event('10000000-0000-0000-0000-000000000004');
 select pg_temp.check(not exists(select 1 from public.events where id='10000000-0000-0000-0000-000000000004'), 'unused standalone deleted');

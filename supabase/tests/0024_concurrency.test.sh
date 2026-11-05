@@ -14,9 +14,11 @@ MIGS="$(cd "$(dirname "$0")/.." && pwd)/migrations"
 
 run >/dev/null -c "grant all on all tables in schema public to anon, authenticated, service_role" \
                -c "grant execute on all functions in schema public to anon, authenticated"
-for m in 0021_participant_id_allocator 0022_profile_update_lockdown 0023_general_registration 0024_staff_participant_ids; do
+run >/dev/null -c "drop function if exists public.set_my_profile_photo(text)"
+for m in 0021_participant_id_allocator 0022_profile_update_lockdown 0023_general_registration 0024_staff_participant_ids 0026_review_hardening; do
   run >/dev/null 2>&1 -f "$MIGS/$m.sql"
 done
+run >/dev/null -c "update public.payment_destination_settings set default_event_upi_id = 'site.default@okbank'"
 
 run >/dev/null <<SQL
 insert into auth.users (id, email) select ('00000000-0000-0000-0000-0000000011' || lpad(n::text, 2, '0'))::uuid, 'k' || n || '@x.test' from generate_series(1, 12) n;

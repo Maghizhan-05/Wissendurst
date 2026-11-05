@@ -22,11 +22,17 @@ export default async function EditEventPage({
   const event = await getEventByIdAdmin(id);
   if (!event) notFound();
 
-  const [parents, offers, offerTargets] = await Promise.all([
+  const [parents, offers, offerTargets, currentParent] = await Promise.all([
     getParentEventOptions(id),
     getEventOffersForSource(id),
     getOfferTargetOptions(id),
+    event.parent_event_id ? getEventByIdAdmin(event.parent_event_id) : Promise.resolve(null),
   ]);
+  // Archived events keep their parent (it may itself be archived and is then
+  // not a selectable option); the form submits it unchanged.
+  const lockedParent = event.archived_at
+    ? { id: event.parent_event_id, title: currentParent?.title ?? null }
+    : undefined;
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -55,6 +61,7 @@ export default async function EditEventPage({
           action={updateEvent}
           event={event}
           parents={parents}
+          lockedParent={lockedParent}
           offers={offers.map((o) => ({
             target_event_id: o.target_event_id,
             discount_rupees: String(o.discount_amount / 100),

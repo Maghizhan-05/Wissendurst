@@ -52,19 +52,23 @@ export async function updateProfile(
   return { ok: true, message: "Profile updated." };
 }
 
-/** Saves a profile photo URL after the client uploads to storage. */
-export async function saveProfilePhoto(publicUrl: string): Promise<ProfileState> {
+/**
+ * Saves the profile photo after the client uploads it to the profile-images
+ * bucket. Takes the storage object path ("<uid>/<file>"), never a URL; build
+ * the public URL with profilePhotoUrl().
+ */
+export async function saveProfilePhoto(objectPath: string): Promise<ProfileState> {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Not signed in." };
 
-  // The RPC only accepts a URL inside the caller's own profile-images folder.
-  const { error } = await supabase.rpc("set_my_profile_photo", { p_url: publicUrl });
+  // The RPC accepts only an uploaded object in the caller's own folder.
+  const { error } = await supabase.rpc("set_my_profile_photo", { p_path: objectPath });
   if (error) {
-    if (error.message?.includes("INVALID_PHOTO_URL"))
-      return { ok: false, error: "That photo link isn't allowed." };
+    if (error.message?.includes("INVALID_PHOTO_PATH") || error.message?.includes("PHOTO_NOT_UPLOADED"))
+      return { ok: false, error: "Upload the photo to your own folder first." };
     return { ok: false, error: "Could not update photo." };
   }
 

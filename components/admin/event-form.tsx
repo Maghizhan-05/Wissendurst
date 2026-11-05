@@ -22,7 +22,13 @@ export function EventForm({
   defaultParentId = "",
   offers = [],
   offerTargets = [],
+  lockedParent,
 }: {
+  /**
+   * Archived event: its broader event is frozen. The current parent is shown
+   * read-only and submitted unchanged (archived parents aren't in `parents`).
+   */
+  lockedParent?: { id: string | null; title: string | null };
   action: Action;
   event?: EventRow;
   /** Events this one may be nested under (depth 0 = event, 1 = sub-event). */
@@ -94,19 +100,33 @@ export function EventForm({
         htmlFor="parent_event_id"
         hint="Leave as “None” for a top-level event. Pick a broader event to nest this under it — up to three levels (event → sub-event → sub-sub-event)."
       >
-        <Select
-          id="parent_event_id"
-          name="parent_event_id"
-          defaultValue={event?.parent_event_id ?? defaultParentId ?? ""}
-        >
-          <option value="">None — top-level event</option>
-          {parents.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.depth > 0 ? `${" ".repeat(p.depth * 2)}↳ ` : ""}
-              {p.title}
-            </option>
-          ))}
-        </Select>
+        {lockedParent ? (
+          <>
+            <input type="hidden" name="parent_event_id" value={lockedParent.id ?? ""} />
+            <Select id="parent_event_id" value={lockedParent.id ?? ""} disabled aria-describedby="parent-locked-hint">
+              <option value={lockedParent.id ?? ""}>
+                {lockedParent.id ? lockedParent.title ?? "Archived broader event" : "None — top-level event"}
+              </option>
+            </Select>
+            <p id="parent-locked-hint" className="mt-1 text-xs text-muted">
+              This event is archived, so it stays where it is. Restore it to move it.
+            </p>
+          </>
+        ) : (
+          <Select
+            id="parent_event_id"
+            name="parent_event_id"
+            defaultValue={event?.parent_event_id ?? defaultParentId ?? ""}
+          >
+            <option value="">None — top-level event</option>
+            {parents.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.depth > 0 ? `${" ".repeat(p.depth * 2)}↳ ` : ""}
+                {p.title}
+              </option>
+            ))}
+          </Select>
+        )}
       </Field>
 
       <Field

@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { paymentVerificationService } from "@/lib/ocr";
 import { requireScope } from "@/lib/auth";
 import { defaultUpiId } from "@/lib/payment";
+import { getDefaultEventUpiId } from "@/lib/data/payment-settings";
 import {
   BUCKETS,
   SCREENSHOT_ACCEPTED_TYPES,
@@ -125,7 +126,8 @@ const SETTINGS_ERRORS: Record<string, string> = {
   INVALID_FEE: "Enter a fee between ₹0 and ₹1,00,000.",
   INVALID_UPI_ID: "Enter a valid UPI ID, e.g. name@bank.",
   GENERAL_REGISTRATION_INCOMPLETE: "To open General Registration, set a fee above ₹0, a dedicated UPI ID and a payee name.",
-  GENERAL_REGISTRATION_UPI_NOT_DEDICATED: "This UPI ID is already used by an event. General Registration needs its own UPI ID.",
+  GENERAL_REGISTRATION_UPI_NOT_DEDICATED: "This UPI ID is already used by an event or is the site's default event UPI. General Registration needs its own UPI ID.",
+  DEFAULT_EVENT_UPI_NOT_CONFIGURED: "The site's default event UPI isn't recorded yet, so General Registration can't be opened. Ask a developer to set it.",
   EVENT_NOT_FOUND: "One of the selected events no longer exists.",
   EVENT_ARCHIVED: "Archived events can't be added to General Registration.",
   HAS_SUBEVENTS: "Select the individual sub-events, not their parent event.",
@@ -152,7 +154,7 @@ export async function saveGeneralRegistrationSettings(
   if (upi && !UPI_ID_PATTERN.test(upi)) return { ok: false, error: SETTINGS_ERRORS.INVALID_UPI_ID };
   if (payee.length > 100) return { ok: false, error: "Payee name is too long (max 100 characters)." };
   // The site default UPI lives in the environment, so the DB can't see it.
-  if (upi && sameUpi(upi, defaultUpiId()))
+  if (upi && (sameUpi(upi, defaultUpiId()) || sameUpi(upi, await getDefaultEventUpiId())))
     return { ok: false, error: "This is the site's default event UPI ID. General Registration needs its own UPI ID." };
 
   const supabase = await createClient();
