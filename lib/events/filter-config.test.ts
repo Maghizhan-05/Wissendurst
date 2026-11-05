@@ -95,10 +95,10 @@ test("legacy ?category= links keep working", () => {
   const poster = resolveActiveFilter(merged, CATS, "poster");
   assert.equal(poster.kind === "category" && poster.category.slug, "poster");
   assert.equal(matchesFilter(poster, id("paper")), false);
-  // a group slug wins over a category slug (live: group "workshop" shows Poster events)
+  // a tab can't hide a category's link: an unrelated tab with slug "workshop" doesn't win (0029)
   const live = cfg([{ id: "poster", slug: "workshop", label: "Workshops", categories: [id("poster")] }]);
   const w = resolveActiveFilter(live, CATS, "workshop");
-  assert.equal(w.kind === "group" && w.group.label, "Workshops");
+  assert.equal(w.kind === "category" && w.category.slug, "workshop");
   // archived categories still resolve (old links), unknown/"all" fall back to All
   const archived = CATS.map((x) => (x.slug === "paper" ? { ...x, archived_at: "2026-11-05" } : x));
   const a = resolveActiveFilter(cfg([]), archived, "paper");
@@ -166,20 +166,34 @@ test("slugifyLabel produces valid slugs", () => {
   assert.equal(slugifyLabel("  Café  Talks! "), "cafe-talks");
 });
 
-test("tab slugs can't newly hide a category's link (existing ones are kept)", () => {
-  // live shape: tab "workshop" shows Poster Presentation
+test("a tab may use a category's slug only when it shows exactly that category", () => {
+  // the pre-reset live shape: tab "workshop" showed Poster Presentation
   const live = cfg([{ id: "workshop", slug: "quizzes", categories: [id("workshop")] }, { id: "poster", slug: "workshop", label: "Workshops", categories: [id("poster")] }]);
   assert.equal(shadowedCategory(live.groups[1], CATS)?.slug, "workshop");
   assert.equal(shadowedCategory(live.groups[0], CATS), null);
-  assert.ok(validateEventFilterConfig(live, { categories: CATS }).ok, "public read accepts it");
-  assert.ok(validateEventFilterConfig(live, { categories: CATS, previous: live }).ok, "re-save keeps the existing slug");
-  assert.equal(validateEventFilterConfig(live, { categories: CATS, previous: null }).ok, false, "new collision refused");
+  assert.equal(validateEventFilterConfig(live, { categories: CATS, previous: live }).ok, false, "no grandfathering");
+  assert.equal(validateEventFilterConfig(live, { categories: CATS, previous: null }).ok, false);
   const taken = cfg([{ id: "workshop", slug: "debate", categories: [id("workshop")] }]);
-  const r = validateEventFilterConfig(taken, { categories: CATS, previous: live });
+  const r = validateEventFilterConfig(taken, { categories: CATS, previous: null });
   assert.equal(r.ok, false);
   if (!r.ok) assert.match(r.error, /belongs to the category “Debate”/);
-  // exactly that one category: no shadowing
   const exact = cfg([{ id: "papers", slug: "paper", categories: [id("paper")] }]);
   assert.ok(validateEventFilterConfig(exact, { categories: CATS, previous: null }).ok);
   assert.ok(validateEventFilterConfig(DEFAULT, { categories: CATS, previous: null }).ok, "default never shadows");
+  // even if such a config were read, ?category=workshop opens the Workshop category
+  const w = resolveActiveFilter(live, CATS, "workshop");
+  assert.equal(w.kind === "group" ? w.group.id : w.kind === "category" ? w.category.slug : "all", "workshop");
+  assert.equal(matchesFilter(w, id("workshop")), true);
+  assert.equal(matchesFilter(w, id("poster")), false);
+});
+
+test("every category URL opens that category or a one-category tab containing it", () => {
+  const configs = [DEFAULT, cfg([{ slug: "presentations", categories: [id("poster"), id("paper")] }]),
+    cfg([{ id: "x", slug: "workshop", categories: [id("poster")] }, { id: "y", slug: "hands-on", categories: [id("workshop")] }])];
+  for (const c of configs)
+    for (const cat of CATS) {
+      const f = resolveActiveFilter(c, CATS, cat.slug);
+      const ok = f.kind === "category" ? f.category.id === cat.id : f.kind === "group" && f.group.categories.length === 1 && f.group.categories[0] === cat.id;
+      assert.ok(ok, `${cat.slug} in ${JSON.stringify(c.groups.map((g) => g.slug))}`);
+    }
 });

@@ -15,6 +15,7 @@ pass() { echo "PASS $1"; }
 fail() { echo "FAIL: $1"; exit 1; }
 MIG="$(cd "$(dirname "$0")/.." && pwd)/migrations/0027_event_categories.sql"
 MIG28="$(cd "$(dirname "$0")/.." && pwd)/migrations/0028_category_link_guards.sql"
+MIG29="$(cd "$(dirname "$0")/.." && pwd)/migrations/0029_strict_category_links.sql"
 ADMIN=00000000-0000-0000-0000-000000001601
 
 run >/dev/null -c "grant all on all tables in schema public to anon, authenticated, service_role" \
@@ -41,6 +42,9 @@ SQL
 put_legacy "$LIVE"
 run >/dev/null 2>&1 --single-transaction -f "$MIG" || fail "M1: migration failed on the live configuration"
 run >/dev/null 2>&1 --single-transaction -f "$MIG28" || fail "M1: 0028 rejected the converted live configuration"
+# 0029 refuses the old live shape (tab "workshop" showed Poster Presentation) and rolls back
+if out=$(run --single-transaction -f "$MIG29" 2>&1); then fail "M1: 0029 should refuse an unrelated slug collision"; fi
+grep -q CATEGORY_URL_CONFLICT <<<"$out" && pass "M1: 0029 aborts on an unrelated tab/category slug collision" || fail "M1: wrong 0029 error: $out"
 res=$(run -v cfg="$LIVE" <<'SQL'
 with old as (select :'cfg'::jsonb c), new as (select config c, updated_at from public.event_filter_config)
 select (select jsonb_agg(g - 'categories' order by o) from new, jsonb_array_elements(new.c->'groups') with ordinality t(g, o))
@@ -66,6 +70,7 @@ after=$(run -c "select md5(config::text) || md5((select string_agg(slug, ',') fr
 [ "$before" = "$after" ] && pass "M2: unresolvable reference aborts and rolls back" || fail "M2: state changed"
 put_legacy '{"allLabel":"All","groups":[]}'
 run >/dev/null 2>&1 -f "$MIG28"
+run >/dev/null 2>&1 -f "$MIG29" || fail "0029 re-apply failed"
 
 run >/dev/null <<SQL
 insert into auth.users (id, email) values ('$ADMIN', 'c@x.test');

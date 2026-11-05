@@ -5,6 +5,7 @@
 grant all on all tables in schema public to anon, authenticated, service_role;
 grant execute on all functions in schema public to anon, authenticated;
 \ir ../migrations/0028_category_link_guards.sql
+\ir ../migrations/0029_strict_category_links.sql
 
 create or replace function pg_temp.expect_error(p_sql text, p_needle text) returns text
 language plpgsql as $$
@@ -40,48 +41,36 @@ insert into auth.users (id, email) values ('00000000-0000-0000-0000-000000001701
 update public.profiles set approval_status = 'approved', role = 'admin', admin_scopes = array['events']
  where id = '00000000-0000-0000-0000-000000001701';
 
--- the LIVE shape: tab "workshop" shows Poster Presentation (pre-existing collision)
-alter table public.event_filter_config disable trigger event_filter_config_enforce;
-update public.event_filter_config set config = pg_temp.cfg(
+-- the pre-reset live shape: tab "workshop" showed Poster Presentation
+create temp table live as select jsonb_build_object('allLabel', 'All', 'groups', jsonb_build_array(
   pg_temp.g('workshop', 'quizzes', 1, array['workshop']),
   pg_temp.g('poster', 'workshop', 2, array['poster']),
-  pg_temp.g('other', 'other', 3, array['other']));
-alter table public.event_filter_config enable trigger event_filter_config_enforce;
-create temp table live as select config c from public.event_filter_config;
+  pg_temp.g('other', 'other', 3, array['other']))) c;
 grant select on live to authenticated;
 
--- ── 1. tab slugs vs category slugs ──────────────────────────────────────────
-select pg_temp.check(public.event_filter_config_error((select c from live), (select c from live)) is null,
-  '1: the live configuration (pre-existing collision) stays valid');
+-- ── 1. tab slugs vs category slugs (0029: no exceptions) ───────────────────
+select pg_temp.check(public.event_filter_config_error((select c from live), (select c from live)) = 'GROUP_SLUG_SHADOWS_CATEGORY',
+  '1: an unrelated collision is refused even if it already existed');
 select pg_temp.check(public.event_filter_config_error((select c from live), null) = 'GROUP_SLUG_SHADOWS_CATEGORY',
-  '1: the same collision is refused when it is new');
+  '1: ... and when new');
+select pg_temp.expect_error(format($q$update public.event_filter_config set config = %L$q$, (select c from live)), 'GROUP_SLUG_SHADOWS_CATEGORY');
 set role authenticated;
 select pg_temp.as_user('00000000-0000-0000-0000-000000001701');
--- re-saving the live config (labels changed) keeps the grandfathered slug
-select public.admin_set_event_filter_config(jsonb_set((select c from live), '{groups,1,label}', '"Workshops!"'));
--- a tab can't newly take a category's slug ...
+select pg_temp.expect_error(format($q$select public.admin_set_event_filter_config(%L)$q$, (select c from live)), 'GROUP_SLUG_SHADOWS_CATEGORY');
 select pg_temp.expect_error(format($q$select public.admin_set_event_filter_config(%L)$q$, pg_temp.cfg(
-  pg_temp.g('workshop', 'debate', 1, array['workshop']),
-  pg_temp.g('poster', 'workshop', 2, array['poster']),
-  pg_temp.g('other', 'other', 3, array['other']))), 'GROUP_SLUG_SHADOWS_CATEGORY');
--- ... nor a brand-new tab (different id) reuse it
+  pg_temp.g('workshop', 'debate', 1, array['workshop']))), 'GROUP_SLUG_SHADOWS_CATEGORY');
 select pg_temp.expect_error(format($q$select public.admin_set_event_filter_config(%L)$q$, pg_temp.cfg(
-  pg_temp.g('workshop', 'quizzes', 1, array['workshop']),
-  pg_temp.g('poster', 'workshop', 2, array['poster']),
-  pg_temp.g('other', 'other', 3, array['other']),
-  pg_temp.g('papers', 'paper', 4, array['paper', 'poster']))), 'GROUP_SLUG_SHADOWS_CATEGORY');
--- a tab showing exactly that one category may use its slug (no shadowing)
-select public.admin_set_event_filter_config(pg_temp.cfg(
-  pg_temp.g('workshop', 'quizzes', 1, array['workshop']),
-  pg_temp.g('poster', 'workshop', 2, array['poster']),
-  pg_temp.g('other', 'other', 3, array['other']),
-  pg_temp.g('papers', 'paper', 4, array['paper'])));
--- once the grandfathered slug is changed, it can't come back
+  pg_temp.g('papers', 'paper', 1, array['paper', 'poster']))), 'GROUP_SLUG_SHADOWS_CATEGORY');
+-- a tab showing exactly that one category may use its slug; renamed tabs are fine
 select public.admin_set_event_filter_config(pg_temp.cfg(
   pg_temp.g('workshop', 'quizzes', 1, array['workshop']),
   pg_temp.g('poster', 'posters', 2, array['poster']),
-  pg_temp.g('other', 'other', 3, array['other'])));
-select pg_temp.expect_error(format($q$select public.admin_set_event_filter_config(%L)$q$, (select c from live)), 'GROUP_SLUG_SHADOWS_CATEGORY');
+  pg_temp.g('other', 'other', 3, array['other']),
+  pg_temp.g('papers', 'paper', 4, array['paper'])));
+reset role;
+select pg_temp.check((select count(*) = 0 from public.event_category_url_conflicts()), '1: every category URL opens that category');
+set role authenticated;
+select pg_temp.as_user('00000000-0000-0000-0000-000000001701');
 -- new categories can't take a tab's slug (enabled or not)
 select pg_temp.expect_error($q$select public.admin_create_event_category('quizzes', 'Quizzes', 'puzzle', 'violet')$q$, 'CATEGORY_SLUG_USED_BY_FILTER_TAB');
 select pg_temp.expect_error($q$select public.admin_create_event_category('posters', 'Posters', 'puzzle', 'violet')$q$, 'CATEGORY_SLUG_USED_BY_FILTER_TAB');

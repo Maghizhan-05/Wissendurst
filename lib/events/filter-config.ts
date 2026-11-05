@@ -124,13 +124,11 @@ export function validateEventFilterConfig(raw: unknown, ctx: FilterValidationCon
   if (ctx.categories) {
     const byId = new Map(ctx.categories.map((c) => [c.id, c]));
     for (const g of config.groups) {
-      // Saving: a tab may not newly take a category's slug (tabs resolve first,
-      // so its ?category= link would be hidden) unless it shows exactly that
-      // category; a tab that already had the slug keeps it.
+      // Saving: a tab may use a category's slug only when it shows exactly that
+      // category (tabs resolve first, so the category's link would be hidden).
       if (ctx.previous !== undefined) {
         const shadowed = shadowedCategory(g, ctx.categories);
-        const before = ctx.previous?.groups.find((p) => p.id === g.id);
-        if (shadowed && before?.slug !== g.slug)
+        if (shadowed)
           return {
             ok: false,
             error: `Slug “${g.slug}” belongs to the category “${shadowed.label}”; pick another slug for “${g.label}”`,
@@ -198,7 +196,9 @@ export function resolveActiveFilter(
   const p = (param ?? "").trim().toLowerCase();
   if (!p || p === "all") return { kind: "all" };
   const groups = visibleGroups(cfg);
-  const bySlug = groups.find((g) => g.slug === p);
+  // A tab whose slug is a category's slug wins only if it shows exactly that
+  // category (the database refuses anything else; this keeps the guarantee).
+  const bySlug = groups.find((g) => g.slug === p && !shadowedCategory(g, categories));
   if (bySlug) return { kind: "group", group: bySlug };
   const cat = categories.find((c) => c.slug === p);
   if (cat) {
