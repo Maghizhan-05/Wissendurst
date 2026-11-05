@@ -6,9 +6,9 @@ import { EventCard } from "./event-card";
 import { Input, Select } from "@/components/ui/field";
 import { EmptyState } from "@/components/ui/misc";
 import { cn } from "@/lib/utils";
-import { EVENT_CATEGORY_LABELS } from "@/lib/constants";
+import { useEventCategories } from "./categories-context";
 import {
-  DEFAULT_EVENT_FILTER_CONFIG,
+  defaultEventFilterConfig,
   matchesFilter,
   resolveActiveFilter,
   visibleGroups,
@@ -25,7 +25,7 @@ export function EventsExplorer({
   subEventCounts = {},
   discounts = {},
   initialCategory,
-  filterConfig = DEFAULT_EVENT_FILTER_CONFIG,
+  filterConfig: filterConfigProp,
 }: {
   /** Admin-configured filter bar (0025); defaults to one tab per category. */
   filterConfig?: EventFilterConfig;
@@ -36,9 +36,16 @@ export function EventsExplorer({
   initialCategory?: string;
 }) {
   const [query, setQuery] = useState("");
+  const categories = useEventCategories();
+  const filterConfig = filterConfigProp ?? defaultEventFilterConfig(categories);
   const groups = visibleGroups(filterConfig);
   const [filter, setFilter] = useState<ActiveFilter>(() =>
-    resolveActiveFilter(filterConfig, initialCategory),
+    resolveActiveFilter(filterConfig, categories, initialCategory),
+  );
+  // Events carry the category slug; groups reference category ids.
+  const categoryIdBySlug = useMemo(
+    () => new Map(categories.map((c) => [c.slug, c.id])),
+    [categories],
   );
   const [sort, setSort] = useState<SortKey>("date");
 
@@ -47,7 +54,7 @@ export function EventsExplorer({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     let list = events.filter((e) => {
-      const matchesCat = matchesFilter(filter, e.category);
+      const matchesCat = matchesFilter(filter, categoryIdBySlug.get(e.category));
       const matchesQuery =
         !q ||
         e.title.toLowerCase().includes(q) ||
@@ -69,7 +76,7 @@ export function EventsExplorer({
       }
     });
     return list;
-  }, [events, query, filter, sort]);
+  }, [events, query, filter, sort, categoryIdBySlug]);
 
   return (
     <div>
@@ -129,7 +136,7 @@ export function EventsExplorer({
         {/* Legacy ?category= link whose category no tab covers on its own. */}
         {filter.kind === "category" && (
           <FilterChip active onClick={() => setFilter({ kind: "all" })}>
-            {EVENT_CATEGORY_LABELS[filter.category]}
+            {filter.category.label}
             <X className="size-3.5" aria-hidden />
             <span className="sr-only"> (show all)</span>
           </FilterChip>

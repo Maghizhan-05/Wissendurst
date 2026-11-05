@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { EVENT_CATEGORIES } from "@/lib/constants";
+import { CATEGORY_SLUG_PATTERN, MAX_CATEGORY_SLUG } from "@/lib/events/categories";
 
 const timeOrEmpty = z
   .string()
@@ -15,7 +15,8 @@ export const eventSchema = z.object({
     .regex(/^[a-z0-9-]+$/, "Lowercase letters, numbers and hyphens only")
     .min(3)
     .max(60),
-  category: z.enum(EVENT_CATEGORIES),
+  // Category slug; the database checks it exists and is active (0027).
+  category: z.string().trim().max(MAX_CATEGORY_SLUG).regex(CATEGORY_SLUG_PATTERN, "Choose a category"),
   short_description: z.string().trim().min(5, "Add a short description").max(180),
   description: z.string().trim().max(5000).optional().default(""),
   eligibility: z.string().trim().max(300).optional().default(""),

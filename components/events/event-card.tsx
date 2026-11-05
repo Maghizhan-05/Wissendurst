@@ -2,7 +2,7 @@ import Link from "next/link";
 import { CalendarDays, MapPin, ArrowUpRight, Lock, Layers } from "lucide-react";
 import { EventThumb } from "./category-visual";
 import { Badge } from "@/components/ui/badge";
-import { EVENT_CATEGORY_LABELS } from "@/lib/constants";
+import { CategoryName } from "./categories-context";
 import { formatEventDate, formatINR, cn } from "@/lib/utils";
 import type { EventRow } from "@/types/database";
 
@@ -42,7 +42,7 @@ export function EventCard({
           />
         </div>
         <div className="absolute left-3 top-3 flex flex-wrap gap-2">
-          <Badge tone="brand">{EVENT_CATEGORY_LABELS[event.category]}</Badge>
+          <Badge tone="brand"><CategoryName slug={event.category} /></Badge>
           {isContainer && (
             <Badge tone="neutral">
               <Layers className="size-3" /> {subEventCount} events

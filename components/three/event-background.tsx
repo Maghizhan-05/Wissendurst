@@ -2,20 +2,12 @@
 
 import dynamic from "next/dynamic";
 import type { EventCategory } from "@/lib/constants";
+import { CATEGORY_COLORS, categoryVisual } from "@/lib/events/categories";
+import { useEventCategories } from "@/components/events/categories-context";
 
 const MoleculeField = dynamic(() => import("./molecule-field"), {
   ssr: false,
 });
-
-const CATEGORY_COLOR: Record<EventCategory, string> = {
-  workshop: "#32d6c1",
-  debate: "#6cefe2",
-  poster: "#34d399",
-  paper: "#22d3ee",
-  competition: "#2dd4bf",
-  academic: "#38bdf8",
-  other: "#32d6c1",
-};
 
 /** Small deterministic seed from the slug so each event drifts differently. */
 function seedFrom(str: string): number {
@@ -37,12 +29,13 @@ export function EventBackground({
   category: EventCategory;
   slug: string;
 }) {
+  const color = CATEGORY_COLORS[categoryVisual(useEventCategories(), category).color].hex;
   return (
     <div
       aria-hidden
       className="pointer-events-none fixed inset-0 -z-10 hidden opacity-40 [mask-image:radial-gradient(ellipse_at_center,black_35%,transparent_80%)] sm:block"
     >
-      <MoleculeField seed={seedFrom(slug)} color={CATEGORY_COLOR[category]} />
+      <MoleculeField seed={seedFrom(slug)} color={color} />
     </div>
   );
 }

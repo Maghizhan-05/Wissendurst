@@ -10,7 +10,7 @@ import {
   type EventCollection,
 } from "@/lib/data/collections";
 import { requireScope } from "@/lib/auth";
-import { EVENT_CATEGORY_LABELS } from "@/lib/constants";
+import { CategoryName } from "@/components/events/categories-context";
 import { formatEventDate, formatINR } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Admin · Collections" };
@@ -95,7 +95,7 @@ function GroupCard({ group: g }: { group: CollectionGroup }) {
             {g.event.title}
           </h3>
           <p className="flex items-center gap-1 truncate text-xs text-muted">
-            {EVENT_CATEGORY_LABELS[g.event.category]}
+            <CategoryName slug={g.event.category} />
             {g.isContainer ? (
               <>
                 {" · "}

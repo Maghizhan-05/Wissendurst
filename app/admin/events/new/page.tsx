@@ -5,6 +5,7 @@ import { EventForm } from "@/components/admin/event-form";
 import { createEvent } from "@/lib/actions/admin";
 import { getOfferTargetOptions, getParentEventOptions } from "@/lib/data/admin";
 import { requireScope } from "@/lib/auth";
+import { getEventCategories } from "@/lib/data/event-categories";
 
 export const metadata: Metadata = { title: "Admin · New event" };
 
@@ -14,9 +15,10 @@ export default async function NewEventPage({
   await requireScope("events");
   const sp = await searchParams;
   const defaultParentId = typeof sp.parent === "string" ? sp.parent : "";
-  const [parents, offerTargets] = await Promise.all([
+  const [parents, offerTargets, categories] = await Promise.all([
     getParentEventOptions(),
     getOfferTargetOptions(),
+    getEventCategories(),
   ]);
   return (
     <div className="mx-auto max-w-3xl">
@@ -36,6 +38,7 @@ export default async function NewEventPage({
         <EventForm
           action={createEvent}
           parents={parents}
+          categories={categories}
           defaultParentId={defaultParentId}
           offerTargets={offerTargets}
         />

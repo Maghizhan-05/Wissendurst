@@ -33,7 +33,7 @@ import {
 } from "@/lib/data/registrations";
 import { getProfile } from "@/lib/auth";
 import { isGeneralRegistrationId } from "@/lib/general-registration";
-import { EVENT_CATEGORY_LABELS } from "@/lib/constants";
+import { CategoryName } from "@/components/events/categories-context";
 import { formatEventDate, formatINR, formatTime } from "@/lib/utils";
 import { EventBackground } from "@/components/three/event-background";
 
@@ -86,7 +86,7 @@ export default async function EventPage({
           <div className="max-w-3xl">
             <div className="flex flex-wrap items-center gap-2">
               <Badge tone="brand">
-                {EVENT_CATEGORY_LABELS[event.category]}
+                <CategoryName slug={event.category} />
               </Badge>
               <Badge tone="neutral">
                 <Layers className="size-3" /> {subEvents.length} events
@@ -214,7 +214,7 @@ export default async function EventPage({
           <div className="order-1 flex flex-col justify-center lg:order-2">
             <div className="flex flex-wrap items-center gap-2">
               <Badge tone="brand">
-                {EVENT_CATEGORY_LABELS[event.category]}
+                <CategoryName slug={event.category} />
               </Badge>
               {!event.is_live && <Badge tone="warning">Coming soon</Badge>}
               {event.is_live && !event.registration_open && (

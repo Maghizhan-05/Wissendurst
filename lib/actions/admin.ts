@@ -146,6 +146,16 @@ async function validateParent(
   return null;
 }
 
+/** Database refusals for events.category (0027 trigger / FK). */
+function mapCategoryAssignmentError(message: string | undefined): string | null {
+  if (!message) return null;
+  if (message.includes("CATEGORY_ARCHIVED"))
+    return "That category is archived. Choose an active category (events already in it keep it).";
+  if (message.includes("CATEGORY_NOT_FOUND") || message.includes("events_category_fkey"))
+    return "That category no longer exists. Reload the page and choose another.";
+  return null;
+}
+
 function parseEventForm(formData: FormData) {
   return eventSchema.safeParse({
     title: formData.get("title"),
@@ -261,6 +271,8 @@ export async function createEvent(
   if (error || !created) {
     if (error?.code === "23505")
       return { ok: false, error: "That slug is already in use." };
+    const categoryError = mapCategoryAssignmentError(error?.message);
+    if (categoryError) return { ok: false, error: categoryError };
     return { ok: false, error: "Could not create event." };
   }
   if (offers.offers.length > 0) {
@@ -330,6 +342,8 @@ export async function updateEvent(
   if (error) {
     if (error.code === "23505")
       return { ok: false, error: "That slug is already in use." };
+    const categoryError = mapCategoryAssignmentError(error.message);
+    if (categoryError) return { ok: false, error: categoryError };
     return { ok: false, error: "Could not update event." };
   }
   const offerError = await saveOffers(supabase, id, offers.offers);

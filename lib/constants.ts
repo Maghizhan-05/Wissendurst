@@ -1,29 +1,15 @@
 /**
  * Shared enums, labels and small constants used across the app.
  * These MIRROR the Postgres enums defined in the migrations. If you change
- * one, change the other (supabase/migrations/0001_init.sql).
+ * one, change the other (supabase/migrations/0001_init.sql). Event categories
+ * are no longer an enum (0027).
  */
 
-export const EVENT_CATEGORIES = [
-  "workshop",
-  "debate",
-  "poster",
-  "paper",
-  "competition",
-  "academic",
-  "other",
-] as const;
-export type EventCategory = (typeof EVENT_CATEGORIES)[number];
-
-export const EVENT_CATEGORY_LABELS: Record<EventCategory, string> = {
-  workshop: "Workshop",
-  debate: "Debate",
-  poster: "Poster Presentation",
-  paper: "Paper Presentation",
-  competition: "Competition",
-  academic: "Academic Event",
-  other: "Other",
-};
+/**
+ * Event categories are data since 0027 (event_categories table; see
+ * lib/events/categories.ts). events.category holds the immutable slug.
+ */
+export type EventCategory = string;
 
 export const REGISTRATION_STATUSES = [
   "pending",

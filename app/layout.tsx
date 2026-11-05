@@ -6,6 +6,8 @@ import { SITE } from "@/lib/constants";
 import { siteUrl } from "@/lib/utils";
 import { getAppearance } from "@/lib/data/settings";
 import { appearanceCss } from "@/lib/content/appearance";
+import { getEventCategories } from "@/lib/data/event-categories";
+import { CategoriesProvider } from "@/components/events/categories-context";
 import "./globals.css";
 
 const inter = Inter({ variable: "--font-inter", subsets: ["latin"] });
@@ -50,7 +52,8 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   // Admin colour overrides, validated to #rrggbb tokens only, emitted in <head>
   // so the first paint already uses them (no theme flash).
-  const themeCss = appearanceCss(await getAppearance());
+  const [appearance, categories] = await Promise.all([getAppearance(), getEventCategories()]);
+  const themeCss = appearanceCss(appearance);
   return (
     <html
       lang="en"
@@ -69,7 +72,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           enableSystem
           disableTransitionOnChange
         >
-          {children}
+          <CategoriesProvider categories={categories}>{children}</CategoriesProvider>
           <Toaster
             position="top-center"
             toastOptions={{

@@ -3,13 +3,14 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { EventFiltersEditor } from "@/components/admin/event-filters-editor";
 import { getEventFilterConfig } from "@/lib/data/event-filters";
+import { getEventCategories } from "@/lib/data/event-categories";
 import { requireScope } from "@/lib/auth";
 
 export const metadata: Metadata = { title: "Admin · Event filters" };
 
 export default async function AdminEventFiltersPage() {
   await requireScope("events");
-  const config = await getEventFilterConfig();
+  const [config, categories] = await Promise.all([getEventFilterConfig(), getEventCategories()]);
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <Link
@@ -25,7 +26,14 @@ export default async function AdminEventFiltersPage() {
           appear in several tabs. Event category badges don&rsquo;t change.
         </p>
       </div>
-      <EventFiltersEditor initial={config} />
+      <p className="text-sm text-muted">
+        To add, rename, archive or delete the categories themselves, use{" "}
+        <Link href="/admin/events/categories" className="font-medium text-brand hover:underline">
+          Event categories
+        </Link>
+        .
+      </p>
+      <EventFiltersEditor initial={config} categories={categories} />
     </div>
   );
 }

@@ -4,7 +4,9 @@ import Image from "next/image";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import type { EventCategory } from "@/lib/constants";
-import { CATEGORY_ICON, CATEGORY_HUE } from "./category-meta";
+import { CATEGORY_COLORS, categoryVisual } from "@/lib/events/categories";
+import { CATEGORY_ICON } from "./category-meta";
+import { useEventCategories } from "./categories-context";
 
 function Placeholder({
   category,
@@ -13,12 +15,14 @@ function Placeholder({
   category: EventCategory;
   className?: string;
 }) {
-  const Icon = CATEGORY_ICON[category];
+  // Allowlisted icon/tint keys only; unknown values fall back to `other`'s look.
+  const visual = categoryVisual(useEventCategories(), category);
+  const Icon = CATEGORY_ICON[visual.icon];
   return (
     <div
       className={cn(
         "relative h-full w-full bg-gradient-to-br to-surface-2",
-        CATEGORY_HUE[category],
+        CATEGORY_COLORS[visual.color].hue,
         className,
       )}
       aria-hidden

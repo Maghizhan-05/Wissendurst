@@ -33,6 +33,22 @@ export interface ProfileRow {
   updated_at: string;
 }
 
+/** event_categories (0027). Writes only via the admin_*_event_category RPCs. */
+export interface EventCategoryRow {
+  id: string;
+  slug: string; // immutable URL contract; events.category references it
+  label: string;
+  position: number;
+  icon_key: string; // allowlist: CATEGORY_ICON_KEYS
+  color_key: string; // allowlist: CATEGORY_COLOR_KEYS
+  archived_at: string | null;
+  archived_by: string | null;
+  created_at: string;
+  created_by: string | null;
+  updated_at: string;
+  updated_by: string | null;
+}
+
 export interface EventRow {
   id: string;
   parent_event_id: string | null; // null = top-level event; set = sub-event
@@ -40,7 +56,7 @@ export interface EventRow {
   title: string;
   short_description: string;
   description: string;
-  category: EventCategory;
+  category: EventCategory; // event_categories.slug (FK, immutable; 0027)
   hero_image: string | null;
   thumbnail_image: string | null;
   rules: string[]; // jsonb array of rule lines

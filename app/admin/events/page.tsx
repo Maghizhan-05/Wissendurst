@@ -24,7 +24,7 @@ import {
 } from "@/lib/actions/admin";
 import { ConfirmActionDialog } from "@/components/admin/confirm-action-dialog";
 import { requireScope } from "@/lib/auth";
-import { EVENT_CATEGORY_LABELS } from "@/lib/constants";
+import { CategoryName } from "@/components/events/categories-context";
 import { formatEventDate, formatINR } from "@/lib/utils";
 import type { EventRow } from "@/types/database";
 
@@ -130,6 +130,9 @@ export default async function AdminEventsPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <ButtonLink href="/admin/events/categories" size="sm" variant="secondary">
+            Categories
+          </ButtonLink>
           <ButtonLink href="/admin/events/filters" size="sm" variant="secondary">
             Filter tabs
           </ButtonLink>
@@ -230,7 +233,7 @@ function EventTable({
                   </div>
                 </td>
                 <td className="px-4 py-3 text-muted">
-                  {EVENT_CATEGORY_LABELS[e.category]}
+                  <CategoryName slug={e.category} />
                 </td>
                 <td className="px-4 py-3 text-muted">
                   {formatEventDate(e.event_date)}

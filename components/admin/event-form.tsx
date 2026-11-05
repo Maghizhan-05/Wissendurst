@@ -4,7 +4,7 @@ import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { slugify } from "@/lib/utils";
-import { EVENT_CATEGORIES, EVENT_CATEGORY_LABELS } from "@/lib/constants";
+import { activeCategories, type EventCategoryInfo } from "@/lib/events/categories";
 import type { AdminActionState } from "@/lib/actions/admin";
 import type { OfferTargetOption } from "@/lib/data/admin";
 import { EventOffersEditor, type OfferDraft } from "@/components/admin/event-offers-editor";
@@ -23,7 +23,13 @@ export function EventForm({
   offers = [],
   offerTargets = [],
   lockedParent,
+  categories,
 }: {
+  /**
+   * All event categories. Active ones are offered; an archived category is
+   * shown only when it is this event's current one (it may keep it).
+   */
+  categories: EventCategoryInfo[];
   /**
    * Archived event: its broader event is frozen. The current parent is shown
    * read-only and submitted unchanged (archived parents aren't in `parents`).
@@ -45,6 +51,9 @@ export function EventForm({
     null,
   );
   const [slug, setSlug] = useState(event?.slug ?? "");
+  const current = categories.find((c) => c.slug === event?.category);
+  const categoryOptions = activeCategories(categories);
+  if (current?.archived_at) categoryOptions.unshift(current);
 
   return (
     <form action={formAction} className="space-y-6">
@@ -75,10 +84,11 @@ export function EventForm({
 
       <div className="grid gap-5 md:grid-cols-2">
         <Field label="Category" htmlFor="category" required>
-          <Select id="category" name="category" defaultValue={event?.category ?? "workshop"}>
-            {EVENT_CATEGORIES.map((c) => (
-              <option key={c} value={c}>
-                {EVENT_CATEGORY_LABELS[c]}
+          <Select id="category" name="category" defaultValue={event?.category ?? categoryOptions[0]?.slug ?? "other"}>
+            {categoryOptions.map((c) => (
+              <option key={c.slug} value={c.slug}>
+                {c.label}
+                {c.archived_at ? " (archived — kept for this event)" : ""}
               </option>
             ))}
           </Select>

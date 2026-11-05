@@ -6,7 +6,7 @@ import { SectionHeading } from "@/components/ui/section-heading";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/misc";
 import { getEvents } from "@/lib/data/events";
-import { EVENT_CATEGORY_LABELS } from "@/lib/constants";
+import { CategoryName } from "@/components/events/categories-context";
 import { formatEventDate, formatTime } from "@/lib/utils";
 import type { EventRow } from "@/types/database";
 
@@ -84,7 +84,7 @@ export default async function SchedulePage() {
                             </div>
                           </div>
                           <Badge tone="brand">
-                            {EVENT_CATEGORY_LABELS[e.category]}
+                            <CategoryName slug={e.category} />
                           </Badge>
                         </Link>
                       </li>

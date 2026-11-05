@@ -8,9 +8,9 @@ import { Card } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/field";
 import { AddButton, ItemControls, moveItem } from "@/components/admin/content-fields";
 import { saveEventFilterConfig, type FilterSaveState } from "@/lib/actions/event-filters";
-import { EVENT_CATEGORIES, EVENT_CATEGORY_LABELS, type EventCategory } from "@/lib/constants";
+import { activeCategories, type EventCategoryInfo } from "@/lib/events/categories";
 import {
-  DEFAULT_EVENT_FILTER_CONFIG,
+  defaultEventFilterConfig,
   MAX_FILTER_GROUPS,
   MAX_FILTER_LABEL,
   MAX_FILTER_SLUG,
@@ -42,7 +42,14 @@ function newGroup(existing: FilterGroup[]): FilterGroup {
   };
 }
 
-export function EventFiltersEditor({ initial }: { initial: EventFilterConfig }) {
+export function EventFiltersEditor({
+  initial,
+  categories,
+}: {
+  initial: EventFilterConfig;
+  /** Every category, archived included (archived ones can't be newly added). */
+  categories: EventCategoryInfo[];
+}) {
   const [cfg, setCfg] = useState<EventFilterConfig>(initial);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [state, action, pending] = useActionState<FilterSaveState, FormData>(saveEventFilterConfig, null);
@@ -53,8 +60,8 @@ export function EventFiltersEditor({ initial }: { initial: EventFilterConfig }) 
     else if (state && !state.ok) toast.error(state.error);
   }, [state]);
 
-  const validation = validateEventFilterConfig(cfg);
-  const unassigned = unassignedCategories(cfg);
+  const validation = validateEventFilterConfig(cfg, { categories, previous: initial });
+  const unassigned = unassignedCategories(cfg, categories);
   const setGroups = (groups: FilterGroup[]) => setCfg((c) => ({ ...c, groups: renumber(groups) }));
   const patch = (i: number, p: Partial<FilterGroup>) =>
     setGroups(cfg.groups.map((g, j) => (j === i ? { ...g, ...p } : g)));
@@ -83,7 +90,7 @@ export function EventFiltersEditor({ initial }: { initial: EventFilterConfig }) 
           <p role="status" className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm text-foreground">
             <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
             <span>
-              No visible group includes: {unassigned.map((c) => EVENT_CATEGORY_LABELS[c]).join(", ")}. Those events are
+              No visible group includes: {unassigned.map((c) => c.label).join(", ")}. Those events are
               still listed under “{cfg.allLabel || "All"}”.
             </span>
           </p>
@@ -107,7 +114,7 @@ export function EventFiltersEditor({ initial }: { initial: EventFilterConfig }) 
           <div className="flex gap-2">
             <button
               type="button"
-              onClick={() => setCfg(DEFAULT_EVENT_FILTER_CONFIG)}
+              onClick={() => setCfg(defaultEventFilterConfig(categories))}
               className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-surface-2"
             >
               Reset to default
@@ -125,6 +132,7 @@ export function EventFiltersEditor({ initial }: { initial: EventFilterConfig }) 
             <GroupRow
               key={g.id}
               group={g}
+              categories={categories}
               index={i}
               count={cfg.groups.length}
               confirming={confirmId === g.id}
@@ -157,6 +165,7 @@ export function EventFiltersEditor({ initial }: { initial: EventFilterConfig }) 
 
 function GroupRow({
   group: g,
+  categories,
   index,
   count,
   confirming,
@@ -167,6 +176,7 @@ function GroupRow({
   onRemove,
 }: {
   group: FilterGroup;
+  categories: EventCategoryInfo[];
   index: number;
   count: number;
   confirming: boolean;
@@ -181,11 +191,15 @@ function GroupRow({
   useEffect(() => {
     if (confirming) cancelRef.current?.focus();
   }, [confirming]);
-  const toggleCat = (c: EventCategory, on: boolean) =>
+  const active = activeCategories(categories);
+  const order = new Map(categories.map((c, i) => [c.id, i]));
+  // Archived categories this group still references: shown, removable, not re-addable.
+  const archivedHere = categories.filter((c) => c.archived_at && g.categories.includes(c.id));
+  const toggleCat = (id: string, on: boolean) =>
     onPatch({
       categories: on
-        ? EVENT_CATEGORIES.filter((x) => x === c || g.categories.includes(x))
-        : g.categories.filter((x) => x !== c),
+        ? [...g.categories, id].sort((a, b) => (order.get(a) ?? 0) - (order.get(b) ?? 0))
+        : g.categories.filter((x) => x !== id),
     });
 
   return (
@@ -258,18 +272,45 @@ function GroupRow({
       <fieldset>
         <legend className="mb-1 text-sm font-medium text-foreground">Categories</legend>
         <div className="flex flex-wrap gap-x-4 gap-y-2">
-          {EVENT_CATEGORIES.map((c) => (
-            <label key={c} className="inline-flex min-h-11 items-center gap-2 text-sm text-foreground sm:min-h-0">
+          {active.map((c) => (
+            <label key={c.id} className="inline-flex min-h-11 items-center gap-2 text-sm text-foreground sm:min-h-0">
               <input
                 type="checkbox"
-                checked={g.categories.includes(c)}
-                onChange={(e) => toggleCat(c, e.target.checked)}
+                checked={g.categories.includes(c.id)}
+                onChange={(e) => toggleCat(c.id, e.target.checked)}
                 className="size-4 accent-[var(--brand)]"
               />
-              {EVENT_CATEGORY_LABELS[c]}
+              {c.label}
             </label>
           ))}
         </div>
+        {archivedHere.length > 0 && (
+          <ul className="mt-2 flex flex-wrap gap-2" aria-label="Archived categories in this group">
+            {archivedHere.map((c) => (
+              <li
+                key={c.id}
+                className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-dashed border-border px-2.5 text-sm text-muted sm:min-h-0 sm:py-1"
+              >
+                <input type="checkbox" checked disabled aria-label={`${c.label} (archived)`} className="size-4" />
+                <span>
+                  {c.label} <span className="text-xs font-medium uppercase tracking-wide">· Archived</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => toggleCat(c.id, false)}
+                  className="rounded-md border border-border px-2 py-0.5 text-xs font-medium text-foreground hover:bg-surface-2"
+                >
+                  Remove<span className="sr-only"> {c.label} from this group</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {archivedHere.length > 0 && (
+          <p className="mt-1 text-xs text-muted">
+            Archived categories can stay in this group but can&rsquo;t be added again until restored.
+          </p>
+        )}
         {g.categories.length === 0 && <p className="mt-1 text-xs text-alert">Choose at least one category.</p>}
       </fieldset>
     </li>
