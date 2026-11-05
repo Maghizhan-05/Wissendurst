@@ -129,9 +129,14 @@ export default async function AdminEventsPage() {
             {archivedRows.length > 0 && ` · ${archivedRows.length} archived`}
           </p>
         </div>
-        <ButtonLink href="/admin/events/new" size="sm">
-          <Plus className="size-4" /> New event
-        </ButtonLink>
+        <div className="flex flex-wrap gap-2">
+          <ButtonLink href="/admin/events/filters" size="sm" variant="secondary">
+            Filter tabs
+          </ButtonLink>
+          <ButtonLink href="/admin/events/new" size="sm">
+            <Plus className="size-4" /> New event
+          </ButtonLink>
+        </div>
       </div>
 
       {activeRows.length === 0 ? (

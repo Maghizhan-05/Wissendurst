@@ -6,11 +6,15 @@ import { EventCard } from "./event-card";
 import { Input, Select } from "@/components/ui/field";
 import { EmptyState } from "@/components/ui/misc";
 import { cn } from "@/lib/utils";
+import { EVENT_CATEGORY_LABELS } from "@/lib/constants";
 import {
-  EVENT_CATEGORIES,
-  EVENT_CATEGORY_LABELS,
-  type EventCategory,
-} from "@/lib/constants";
+  DEFAULT_EVENT_FILTER_CONFIG,
+  matchesFilter,
+  resolveActiveFilter,
+  visibleGroups,
+  type ActiveFilter,
+  type EventFilterConfig,
+} from "@/lib/events/filter-config";
 import type { EventRow } from "@/types/database";
 
 type SortKey = "date" | "fee-asc" | "fee-desc" | "title";
@@ -21,7 +25,10 @@ export function EventsExplorer({
   subEventCounts = {},
   discounts = {},
   initialCategory,
+  filterConfig = DEFAULT_EVENT_FILTER_CONFIG,
 }: {
+  /** Admin-configured filter bar (0025); defaults to one tab per category. */
+  filterConfig?: EventFilterConfig;
   events: EventRow[];
   registeredIds: string[];
   subEventCounts?: Record<string, number>;
@@ -29,10 +36,9 @@ export function EventsExplorer({
   initialCategory?: string;
 }) {
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState<EventCategory | "all">(
-    (EVENT_CATEGORIES as readonly string[]).includes(initialCategory ?? "")
-      ? (initialCategory as EventCategory)
-      : "all",
+  const groups = visibleGroups(filterConfig);
+  const [filter, setFilter] = useState<ActiveFilter>(() =>
+    resolveActiveFilter(filterConfig, initialCategory),
   );
   const [sort, setSort] = useState<SortKey>("date");
 
@@ -41,7 +47,7 @@ export function EventsExplorer({
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     let list = events.filter((e) => {
-      const matchesCat = category === "all" || e.category === category;
+      const matchesCat = matchesFilter(filter, e.category);
       const matchesQuery =
         !q ||
         e.title.toLowerCase().includes(q) ||
@@ -63,7 +69,7 @@ export function EventsExplorer({
       }
     });
     return list;
-  }, [events, query, category, sort]);
+  }, [events, query, filter, sort]);
 
   return (
     <div>
@@ -103,19 +109,31 @@ export function EventsExplorer({
         </div>
       </div>
 
-      <div className="mt-5 flex flex-wrap gap-2">
-        <FilterChip active={category === "all"} onClick={() => setCategory("all")}>
-          All
+      <div
+        role="group"
+        aria-label="Filter events by category"
+        className="mt-5 flex flex-wrap gap-2"
+      >
+        <FilterChip active={filter.kind === "all"} onClick={() => setFilter({ kind: "all" })}>
+          {filterConfig.allLabel}
         </FilterChip>
-        {EVENT_CATEGORIES.map((c) => (
+        {groups.map((g) => (
           <FilterChip
-            key={c}
-            active={category === c}
-            onClick={() => setCategory(c)}
+            key={g.id}
+            active={filter.kind === "group" && filter.group.id === g.id}
+            onClick={() => setFilter({ kind: "group", group: g })}
           >
-            {EVENT_CATEGORY_LABELS[c]}
+            {g.label}
           </FilterChip>
         ))}
+        {/* Legacy ?category= link whose category no tab covers on its own. */}
+        {filter.kind === "category" && (
+          <FilterChip active onClick={() => setFilter({ kind: "all" })}>
+            {EVENT_CATEGORY_LABELS[filter.category]}
+            <X className="size-3.5" aria-hidden />
+            <span className="sr-only"> (show all)</span>
+          </FilterChip>
+        )}
       </div>
 
       {filtered.length === 0 ? (
@@ -153,9 +171,13 @@ function FilterChip({
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={cn(
-        "rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
+        // 44px effective touch target on mobile; original compact size from sm up.
+        "inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors sm:min-h-0",
+        "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
         active
           ? "border-brand bg-brand text-brand-contrast"
           : "border-border text-muted hover:text-foreground",

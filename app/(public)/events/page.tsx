@@ -8,6 +8,7 @@ import {
   soloDiscounts,
 } from "@/lib/data/events";
 import { getMyRegisteredEventIds } from "@/lib/data/registrations";
+import { getEventFilterConfig } from "@/lib/data/event-filters";
 
 export const metadata: Metadata = {
   title: "Events",
@@ -22,10 +23,11 @@ export default async function EventsPage({
   const category =
     typeof params.category === "string" ? params.category : undefined;
 
-  const [events, subEventCounts, registeredIds] = await Promise.all([
+  const [events, subEventCounts, registeredIds, filterConfig] = await Promise.all([
     getTopLevelEvents(),
     getSubEventCounts(),
     getMyRegisteredEventIds(),
+    getEventFilterConfig(),
   ]);
   const discounts = soloDiscounts(await getMyOfferPrices(events.map((e) => e.id)));
 
@@ -52,6 +54,7 @@ export default async function EventsPage({
             discounts={discounts}
             registeredIds={[...registeredIds]}
             initialCategory={category}
+            filterConfig={filterConfig}
           />
         </div>
       </Container>
