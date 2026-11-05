@@ -27,11 +27,16 @@ async function loadRegistration(registrationId: string): Promise<{
   profile: ProfileRow;
 } | null> {
   const admin = createAdminClient();
-  const { data: reg } = await admin
+  const { data: reg, error } = await admin
     .from("registrations")
-    .select("*, event:events(*)")
+    .select("*, event:events!registrations_event_id_fkey(*)")
     .eq("id", registrationId)
     .maybeSingle();
+  if (error) {
+    // Emails are best-effort, but a failed lookup must be visible in the logs.
+    console.error("notify: registration lookup failed:", error);
+    return null;
+  }
   if (!reg) return null;
 
   const registration = reg as RegistrationRow & { event: EventRow };

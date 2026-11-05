@@ -1,5 +1,6 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import { queryError } from "@/lib/supabase/query-error";
 import type {
   EventOfferRow,
   EventRow,
@@ -61,10 +62,11 @@ export async function getAdminStats(): Promise<AdminStats> {
     0,
   );
 
-  const { data: regRows } = await supabase
+  const { data: regRows, error: regError } = await supabase
     .from("registrations")
-    .select("event:events(title)")
+    .select("event:events!registrations_event_id_fkey(title)")
     .eq("registration_status", "confirmed");
+  if (regError) throw queryError("admin stats per-event registrations", regError);
   const tally = new Map<string, number>();
   type JoinRow = { event: { title: string } | { title: string }[] | null };
   for (const r of (regRows ?? []) as unknown as JoinRow[]) {
@@ -273,7 +275,7 @@ export async function getRegistrationsAdmin(
   let query = supabase
     .from("registrations")
     .select(
-      "*, event:events(id,slug,title,registration_fee), profile:profiles!profile_id(id,participant_id,full_name,email,phone)",
+      "*, event:events!registrations_event_id_fkey(id,slug,title,registration_fee), profile:profiles!profile_id(id,participant_id,full_name,email,phone)",
     )
     .order("registered_at", { ascending: false });
 
@@ -283,7 +285,8 @@ export async function getRegistrationsAdmin(
     query = query.eq("registration_status", filters.registration);
   if (filters.duplicatesOnly) query = query.eq("payment_status", "duplicate");
 
-  const { data } = await query;
+  const { data, error } = await query;
+  if (error) throw queryError("getRegistrationsAdmin", error);
   return (data as RegistrationWithEventAndProfile[]) ?? [];
 }
 
@@ -291,13 +294,14 @@ export async function getRegistrationAdmin(
   id: string,
 ): Promise<RegistrationWithEventAndProfile | null> {
   const supabase = await createClient();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("registrations")
     .select(
-      "*, event:events(id,slug,title,registration_fee), profile:profiles!profile_id(id,participant_id,full_name,email,phone)",
+      "*, event:events!registrations_event_id_fkey(id,slug,title,registration_fee), profile:profiles!profile_id(id,participant_id,full_name,email,phone)",
     )
     .eq("id", id)
     .maybeSingle();
+  if (error) throw queryError("getRegistrationAdmin", error);
   return (data as RegistrationWithEventAndProfile) ?? null;
 }
 
@@ -306,13 +310,14 @@ export async function getPaymentQueue(): Promise<
   RegistrationWithEventAndProfile[]
 > {
   const supabase = await createClient();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("registrations")
     .select(
-      "*, event:events(id,slug,title,registration_fee), profile:profiles!profile_id(id,participant_id,full_name,email,phone)",
+      "*, event:events!registrations_event_id_fkey(id,slug,title,registration_fee), profile:profiles!profile_id(id,participant_id,full_name,email,phone)",
     )
     .in("payment_status", ["uploaded", "under_review", "duplicate"])
     .order("registered_at", { ascending: true });
+  if (error) throw queryError("getPaymentQueue", error);
   return (data as RegistrationWithEventAndProfile[]) ?? [];
 }
 
@@ -374,11 +379,12 @@ export async function getUserWithRegistrations(id: string): Promise<{
     .maybeSingle();
   if (!profile) return null;
 
-  const { data: registrations } = await supabase
+  const { data: registrations, error: regError } = await supabase
     .from("registrations")
-    .select("*, event:events(title,slug)")
+    .select("*, event:events!registrations_event_id_fkey(title,slug)")
     .eq("profile_id", id)
     .order("registered_at", { ascending: false });
+  if (regError) throw queryError("user registrations", regError);
 
   return {
     profile: profile as ProfileRow,

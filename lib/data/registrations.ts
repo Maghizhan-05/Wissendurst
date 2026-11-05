@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { queryError } from "@/lib/supabase/query-error";
 import type { RegistrationState } from "@/lib/payment-intent";
 import type {
   RegistrationRow,
@@ -19,10 +20,7 @@ export async function getMyRegistrationStates(): Promise<
   if (!user) return new Map();
 
   const { data, error } = await supabase.rpc("my_registration_states");
-  if (error) {
-    console.error("my_registration_states failed:", error);
-    return new Map();
-  }
+  if (error) throw queryError("my_registration_states", error);
   return new Map(
     ((data ?? []) as RegistrationState[]).map((s) => [s.registration_id, s]),
   );
@@ -49,13 +47,14 @@ export async function getMyRegistrations(): Promise<
   RegistrationWithEventAndState[]
 > {
   const supabase = await createClient();
-  const [{ data }, states] = await Promise.all([
+  const [{ data, error }, states] = await Promise.all([
     supabase
       .from("registrations")
-      .select("*, event:events(*)")
+      .select("*, event:events!registrations_event_id_fkey(*)")
       .order("registered_at", { ascending: false }),
     getMyRegistrationStates(),
   ]);
+  if (error) throw queryError("getMyRegistrations", error);
   return ((data as RegistrationWithEvent[]) ?? []).map((r) => ({
     ...r,
     state: states.get(r.id) ?? null,
@@ -67,14 +66,16 @@ export async function getMyRegistration(
   id: string,
 ): Promise<RegistrationWithEventAndState | null> {
   const supabase = await createClient();
-  const [{ data }, states] = await Promise.all([
+  const [{ data, error }, states] = await Promise.all([
     supabase
       .from("registrations")
-      .select("*, event:events(*)")
+      .select("*, event:events!registrations_event_id_fkey(*)")
       .eq("id", id)
       .maybeSingle(),
     getMyRegistrationStates(),
   ]);
+  // A failed query is an error (error page), never a "not found".
+  if (error) throw queryError("getMyRegistration", error);
   if (!data) return null;
   const reg = data as RegistrationWithEvent;
   return { ...reg, state: states.get(reg.id) ?? null };
@@ -90,7 +91,7 @@ export async function getMyRegistrationForEvent(
   } = await supabase.auth.getUser();
   if (!user) return null;
 
-  const [{ data }, states] = await Promise.all([
+  const [{ data, error }, states] = await Promise.all([
     supabase
       .from("registrations")
       .select("*")
@@ -99,6 +100,7 @@ export async function getMyRegistrationForEvent(
       .maybeSingle(),
     getMyRegistrationStates(),
   ]);
+  if (error) throw queryError("getMyRegistrationForEvent", error);
   if (!data) return null;
   const reg = data as RegistrationRow;
   return { ...reg, state: states.get(reg.id) ?? null };

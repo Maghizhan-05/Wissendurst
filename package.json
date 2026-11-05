@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test:db": "bash scripts/test-db.sh",
-    "test:unit": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test lib/*.test.ts lib/content/*.test.ts lib/events/*.test.ts"
+    "test:unit": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test lib/*.test.ts lib/content/*.test.ts lib/events/*.test.ts lib/supabase/*.test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",

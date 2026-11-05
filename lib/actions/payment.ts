@@ -81,11 +81,11 @@ export async function analyzeScreenshot(
 
   // Confirm the registration is the caller's (RLS scopes this select) and
   // that a payment can be submitted at all before storing anything.
-  const [{ data: reg }, { data: states }] = await Promise.all([
+  const [{ data: reg, error: regError }, { data: states, error: statesError }] = await Promise.all([
     supabase
       .from("registrations")
       .select(
-        "id, profile_id, team_id, is_team_head, registration_status, payment_status, event:events(archived_at, general_registration_covered)",
+        "id, profile_id, team_id, is_team_head, registration_status, payment_status, event:events!registrations_event_id_fkey(archived_at, general_registration_covered)",
       )
       .eq("id", registrationId)
       .maybeSingle(),
@@ -102,6 +102,10 @@ export async function analyzeScreenshot(
         | "payment_status"
       > & { event: { archived_at: string | null; general_registration_covered: boolean } | null })
     | null;
+  if (regError || statesError) {
+    console.error("payment submit: registration lookup failed:", regError ?? statesError);
+    return { ok: false, error: "We couldn't load your registration just now. Please try again." };
+  }
   if (!row || row.profile_id !== user.id)
     return { ok: false, error: "Registration not found." };
   const state =
