@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui/misc";
 import { getEvents } from "@/lib/data/events";
 import { CategoryName } from "@/components/events/categories-context";
 import { formatEventDate, formatTime } from "@/lib/utils";
+import { compareScheduleEvents } from "@/lib/schedule";
 import type { EventRow } from "@/types/database";
 
 export const metadata: Metadata = {
@@ -53,9 +54,7 @@ export default async function SchedulePage() {
                 <ul className="mt-4 divide-y divide-border overflow-hidden rounded-2xl border border-border bg-surface">
                   {list
                     .slice()
-                    .sort((a, b) =>
-                      (a.start_time ?? "").localeCompare(b.start_time ?? ""),
-                    )
+                    .sort(compareScheduleEvents)
                     .map((e) => (
                       <li key={e.id}>
                         <Link
