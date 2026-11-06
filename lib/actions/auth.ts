@@ -159,7 +159,7 @@ export async function signUp(_prev: AuthState, formData: FormData): Promise<Auth
   return {
     ok: true,
     message:
-      "Thanks! Your account is pending organizer approval. We'll email you as soon as it's approved — then you can log in.",
+      "Thanks! Your account is pending organizer approval. We'll email you as soon as it's approved — then you can sign in.",
   };
 }
 

@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/ui/misc";
 import { getPaymentQueue } from "@/lib/data/admin";
 import { formatEventDate, formatINR } from "@/lib/utils";
 import { requireScope } from "@/lib/auth";
+import { teamDisplay } from "@/lib/team-label";
 
 export const metadata: Metadata = { title: "Admin · Payments" };
 
@@ -52,7 +53,8 @@ export default async function AdminPaymentsPage() {
                     </span>
                   </div>
                   <p className="mt-0.5 truncate text-sm text-muted">
-                    {r.event.title} · {formatINR(r.amount)} ·{" "}
+                    {r.event.title}
+                    {teamDisplay(r.team) ? ` · Team: ${teamDisplay(r.team)}` : ""} · {formatINR(r.amount)} ·{" "}
                     {formatEventDate(r.registered_at.slice(0, 10))}
                   </p>
                 </div>

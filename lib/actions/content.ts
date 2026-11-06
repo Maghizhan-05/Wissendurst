@@ -7,6 +7,7 @@ import { requireScope } from "@/lib/auth";
 import { landingSchema } from "@/lib/content/landing";
 import { aboutSchema } from "@/lib/content/about";
 import { appearanceSchema } from "@/lib/content/appearance";
+import { socialSchema } from "@/lib/content/social";
 
 export type ContentState =
   | { ok: false; error: string }
@@ -32,7 +33,7 @@ function firstIssue(error: z.ZodError): string {
 }
 
 async function saveColumn(
-  column: "content" | "about" | "appearance",
+  column: "content" | "about" | "appearance" | "social",
   value: unknown,
 ): Promise<string | null> {
   const supabase = await createClient();
@@ -101,4 +102,23 @@ export async function updateAppearance(
   // Colours apply to every page (public, participant and admin).
   revalidatePath("/", "layout");
   return { ok: true, message: "Appearance updated." };
+}
+
+export async function updateSocialLinks(
+  _prev: ContentState,
+  formData: FormData,
+): Promise<ContentState> {
+  await requireScope("content");
+  const raw = readJson(formData, "social");
+  if (raw === undefined) return { ok: false, error: "Could not read the form data." };
+
+  const result = socialSchema.safeParse(raw);
+  if (!result.success) return { ok: false, error: firstIssue(result.error) };
+
+  const err = await saveColumn("social", result.data);
+  if (err) return { ok: false, error: err };
+
+  // The menu is in the public navbar on every page.
+  revalidatePath("/", "layout");
+  return { ok: true, message: "Social links updated." };
 }

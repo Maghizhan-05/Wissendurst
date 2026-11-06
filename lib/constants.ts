@@ -46,7 +46,7 @@ export const ADMIN_SCOPES = ["signups", "events", "payments", "content"] as cons
 export type AdminScope = (typeof ADMIN_SCOPES)[number];
 
 export const ADMIN_SCOPE_LABELS: Record<AdminScope, string> = {
-  signups: "Signup approvals",
+  signups: "Sign-up approvals",
   events: "Events & registrations",
   payments: "Payment approvals",
   content: "Site content & appearance",

@@ -196,7 +196,6 @@ export interface OfferTargetOption {
   /** Price a solo participant pays (paise). */
   registration_fee: number;
   team_enabled: boolean;
-  team_fee: number;
   /** Not selectable for NEW offers (archived or has sub-events). */
   unavailable: boolean;
 }
@@ -212,7 +211,7 @@ export async function getOfferTargetOptions(
   const supabase = await createClient();
   const { data } = await supabase
     .from("events")
-    .select("id, title, parent_event_id, registration_fee, team_enabled, team_fee, archived_at")
+    .select("id, title, parent_event_id, registration_fee, team_enabled, archived_at")
     .order("title", { ascending: true });
   const rows = (data ?? []) as {
     id: string;
@@ -220,7 +219,6 @@ export async function getOfferTargetOptions(
     parent_event_id: string | null;
     registration_fee: number;
     team_enabled: boolean;
-    team_fee: number;
     archived_at: string | null;
   }[];
   const parents = new Set(
@@ -233,7 +231,6 @@ export async function getOfferTargetOptions(
       title: r.title,
       registration_fee: r.registration_fee,
       team_enabled: r.team_enabled,
-      team_fee: r.team_fee,
       unavailable: Boolean(r.archived_at) || parents.has(r.id),
     }));
 }
@@ -249,6 +246,18 @@ export async function getEventOffersForSource(
     .eq("source_event_id", sourceId)
     .order("created_at", { ascending: true });
   return (data as EventOfferRow[]) ?? [];
+}
+
+/** Saved per-size team prices (paise, index 0 = size 1) of one event. */
+export async function getEventTeamPrices(eventId: string): Promise<number[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("event_team_price_tiers")
+    .select("team_size, fee")
+    .eq("event_id", eventId)
+    .order("team_size", { ascending: true });
+  if (error) throw queryError("event_team_price_tiers", error);
+  return ((data ?? []) as { team_size: number; fee: number }[]).map((t) => t.fee);
 }
 
 export async function getEventByIdAdmin(id: string): Promise<EventRow | null> {
@@ -275,7 +284,7 @@ export async function getRegistrationsAdmin(
   let query = supabase
     .from("registrations")
     .select(
-      "*, event:events!registrations_event_id_fkey(id,slug,title,registration_fee), profile:profiles!profile_id(id,participant_id,full_name,email,phone)",
+      "*, event:events!registrations_event_id_fkey(id,slug,title,registration_fee), profile:profiles!profile_id(id,participant_id,full_name,email,phone), team:teams!team_id(name,member_count)",
     )
     .order("registered_at", { ascending: false });
 
@@ -297,7 +306,7 @@ export async function getRegistrationAdmin(
   const { data, error } = await supabase
     .from("registrations")
     .select(
-      "*, event:events!registrations_event_id_fkey(id,slug,title,registration_fee), profile:profiles!profile_id(id,participant_id,full_name,email,phone)",
+      "*, event:events!registrations_event_id_fkey(id,slug,title,registration_fee), profile:profiles!profile_id(id,participant_id,full_name,email,phone), team:teams!team_id(name,member_count)",
     )
     .eq("id", id)
     .maybeSingle();
@@ -313,7 +322,7 @@ export async function getPaymentQueue(): Promise<
   const { data, error } = await supabase
     .from("registrations")
     .select(
-      "*, event:events!registrations_event_id_fkey(id,slug,title,registration_fee), profile:profiles!profile_id(id,participant_id,full_name,email,phone)",
+      "*, event:events!registrations_event_id_fkey(id,slug,title,registration_fee), profile:profiles!profile_id(id,participant_id,full_name,email,phone), team:teams!team_id(name,member_count)",
     )
     .in("payment_status", ["uploaded", "under_review", "duplicate"])
     .order("registered_at", { ascending: true });

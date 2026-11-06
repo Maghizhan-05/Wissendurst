@@ -19,6 +19,7 @@ import {
   type RegistrationState,
 } from "@/lib/payment-intent";
 import type { RegistrationWithEvent } from "@/types/database";
+import { teamDisplay } from "@/lib/team-label";
 
 /**
  * Interactive 3D flip card. Flips on hover (desktop) and tap (mobile).
@@ -118,7 +119,8 @@ export function RegistrationFlipCard({
             </Row>
             {registration.team_id && (
               <Row label="Team">
-                <span className="text-foreground">
+                <span className="min-w-0 break-words text-right text-foreground">
+                  {teamDisplay(registration.team) ? `${teamDisplay(registration.team)} · ` : ""}
                   {registration.is_team_head ? "Team head" : "Team member"}
                 </span>
               </Row>

@@ -129,11 +129,11 @@ select pg_temp.check((select registration_status = 'confirmed' and amount = 0 an
 select pg_temp.as_user(3);
 select pg_temp.check((select team_amount = 7000 and team_discount = 3000 and solo_amount = 1000 from public.my_offer_prices(array[pg_temp.ev('t')])),
   '8: preview: team 10000-3000, team of one 4000-3000');
-select (public.register_team(pg_temp.ev('t'), array[pg_temp.u(5)])).amount = 7000 as team_offer_applied;
+select (public.register_team(pg_temp.ev('t'), array[pg_temp.u(5)], 'Test team')).amount = 7000 as team_offer_applied;
 select pg_temp.check((select list_price = 10000 and offer_discount = 3000 from pg_temp.reg(3,'t'))
    and (select amount = 0 and offer_discount = 0 from pg_temp.reg(5,'t')), '8: head pays discounted team fee, member 0');
 select pg_temp.as_user(4);
-select (public.register_team(pg_temp.ev('t'), array[pg_temp.u(1)])).amount = 10000 as ineligible_head_full_price;
+select (public.register_team(pg_temp.ev('t'), array[pg_temp.u(1)], 'Test team')).amount = 10000 as ineligible_head_full_price;
 select pg_temp.as_user(6);
 reset role; select pg_temp.verified_on(6, 'a'); set role authenticated;
 select (public.register_team(pg_temp.ev('t'), array[]::uuid[])).amount = 1000 as lone_member_offer;

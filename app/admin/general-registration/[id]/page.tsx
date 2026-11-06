@@ -117,7 +117,7 @@ export default async function GeneralRegistrationReviewPage({
         <section aria-labelledby="gr-ids" className="rounded-2xl border border-border bg-surface p-5">
           <h2 id="gr-ids" className="font-display text-lg font-semibold text-foreground">Participant ID history</h2>
           {idHistory.length === 0 ? (
-            <p className="mt-3 text-sm text-muted">Visible to admins with the signups scope.</p>
+            <p className="mt-3 text-sm text-muted">Visible to admins with the Sign-up approvals scope.</p>
           ) : (
             <ol className="mt-3 space-y-2 text-sm">
               {idHistory.map((h, i) => (

@@ -28,17 +28,29 @@ function shell(heading: string, bodyHtml: string, cta?: { label: string; href: s
   </div>`;
 }
 
+function esc(v: string): string {
+  return v.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+}
+
+/** Team row for confirmation emails (team name is participant-entered text). */
+function teamRow(teamName: string | null | undefined): string {
+  if (teamName === undefined) return "";
+  return `<tr><td style="padding:6px 0;color:#627775;">Team</td><td style="padding:6px 0;text-align:right;">${esc(
+    teamName && teamName.trim() ? teamName : "Unnamed team",
+  )}</td></tr>`;
+}
+
 function pid(participantId: string): string {
   return `<span style="font-family:monospace;background:#ecf6f4;border:1px solid #d5e5e2;border-radius:6px;padding:2px 8px;color:#087f78;font-weight:700;">${participantId}</span>`;
 }
 
 export function signupPendingEmail(name: string) {
   return {
-    subject: "We received your Wissendurst'27 signup",
+    subject: "We received your Wissendurst'27 sign-up",
     html: shell(
       `Thanks, ${name || "there"} 👋`,
       `<p style="line-height:1.6;">Your account and ID card have been received and are now waiting for an organizer to approve.</p>
-       <p style="line-height:1.6;color:#627775;">You'll get another email the moment you're approved — then you can log in and start registering for events.</p>`,
+       <p style="line-height:1.6;color:#627775;">You'll get another email the moment you're approved — then you can sign in and start registering for events.</p>`,
     ),
   };
 }
@@ -48,15 +60,15 @@ export function approvalGrantedEmail(name: string, participantId: string) {
     subject: "You're approved — welcome to Wissendurst'27 ✅",
     html: shell(
       `You're in, ${name || "there"}! 🎉`,
-      `<p style="line-height:1.6;">An organizer has approved your account. You can now log in. Your participant ID is ${pid(participantId)} — keep it handy for every event and payment.</p>`,
-      { label: "Log in", href: siteUrl("/login") },
+      `<p style="line-height:1.6;">An organizer has approved your account. You can now sign in. Your participant ID is ${pid(participantId)} — keep it handy for every event and payment.</p>`,
+      { label: "Sign in", href: siteUrl("/login") },
     ),
   };
 }
 
 export function approvalRejectedEmail(name: string) {
   return {
-    subject: "Update on your Wissendurst'27 signup",
+    subject: "Update on your Wissendurst'27 sign-up",
     html: shell(
       `Hi ${name || "there"}`,
       `<p style="line-height:1.6;">We're sorry — your account could not be approved at this time. If you think this is a mistake, please reply to this email or contact the organizers.</p>`,
@@ -81,6 +93,8 @@ export function registrationEmail(
   participantId: string,
   event: EventRow,
   amountPaise: number,
+  /** Team registrations only (undefined = not a team). */
+  teamName?: string | null,
 ) {
   const when = `${formatEventDate(event.event_date)}${
     event.start_time ? ` · ${formatTime(event.start_time)}` : ""
@@ -95,6 +109,7 @@ export function registrationEmail(
          <tr><td style="padding:6px 0;color:#627775;">Event</td><td style="padding:6px 0;text-align:right;font-weight:600;">${event.title}</td></tr>
          <tr><td style="padding:6px 0;color:#627775;">When</td><td style="padding:6px 0;text-align:right;">${when}</td></tr>
          <tr><td style="padding:6px 0;color:#627775;">Venue</td><td style="padding:6px 0;text-align:right;">${event.venue ?? "TBA"}</td></tr>
+         ${teamRow(teamName)}
          <tr><td style="padding:6px 0;color:#627775;">Fee</td><td style="padding:6px 0;text-align:right;">${paid ? "No charge" : formatINR(amountPaise)}</td></tr>
        </table>
        <p style="line-height:1.6;color:#627775;">${
@@ -122,7 +137,7 @@ export function paymentUnderReviewEmail(
       `<p style="line-height:1.6;">Thanks ${name || "there"} — we've received your payment of <strong>${formatINR(
         amountPaise,
       )}</strong> for <strong>${event.title}</strong>${
-        transactionId ? ` (txn ${transactionId})` : ""
+        transactionId ? ` (transaction ID ${esc(transactionId)})` : ""
       }.</p>
        <p style="line-height:1.6;color:#627775;">An organizer will verify it shortly. You'll get another email once it's confirmed.</p>`,
       { label: "View status", href: siteUrl("/dashboard/registrations") },
@@ -133,6 +148,8 @@ export function paymentUnderReviewEmail(
 export function paymentConfirmedEmail(
   name: string,
   event: EventRow,
+  /** Team registrations only (undefined = not a team). */
+  teamName?: string | null,
 ) {
   const when = `${formatEventDate(event.event_date)}${
     event.start_time ? ` · ${formatTime(event.start_time)}` : ""
@@ -146,6 +163,7 @@ export function paymentConfirmedEmail(
          <tr><td style="padding:6px 0;color:#627775;">Event</td><td style="padding:6px 0;text-align:right;font-weight:600;">${event.title}</td></tr>
          <tr><td style="padding:6px 0;color:#627775;">When</td><td style="padding:6px 0;text-align:right;">${when}</td></tr>
          <tr><td style="padding:6px 0;color:#627775;">Venue</td><td style="padding:6px 0;text-align:right;">${event.venue ?? "TBA"}</td></tr>
+         ${teamRow(teamName)}
        </table>
        <p style="line-height:1.6;color:#627775;">See you there!</p>`,
       { label: "View my events", href: siteUrl("/dashboard/registrations") },
@@ -155,9 +173,6 @@ export function paymentConfirmedEmail(
 
 /* ── General Registration (0023) ───────────────────────────────────────── */
 
-function esc(v: string): string {
-  return v.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
-}
 
 export function generalRegistrationSubmittedEmail(
   name: string,
@@ -189,7 +204,7 @@ export function generalRegistrationVerifiedEmail(
       `<p style="line-height:1.6;">Your General Registration payment is verified. Your participant ID is now ${pid(esc(newId))}${
         previousId ? ` (it replaces ${esc(previousId)}, which is no longer valid)` : ""
       }.</p>
-       <p style="line-height:1.6;">Next step: open each included event and choose <strong>Enroll</strong> — enrolment is free for you, but seats are limited and not reserved automatically.</p>`,
+       <p style="line-height:1.6;">Next step: open each included event and choose <strong>Enrol</strong> — enrolment is free for you, but seats are limited and not reserved automatically.</p>`,
       { label: "Choose my events", href: siteUrl("/general-registration") },
     ),
   };

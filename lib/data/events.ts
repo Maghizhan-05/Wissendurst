@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { queryError } from "@/lib/supabase/query-error";
 import type { EventRow } from "@/types/database";
 
 /**
@@ -148,6 +149,44 @@ export async function getMyOfferPrices(
     };
   }
   return result;
+}
+
+export interface TeamSizePrice {
+  size: number;
+  list: number; // paise — this size's own price
+  discount: number; // paise — the head's best offer, capped at list
+  amount: number; // paise — what the head would pay
+}
+
+/**
+ * Price of every team size 1..team_max of a team event (0030). Signed in:
+ * the same database rule register_team / edit_team_roster freeze
+ * (my_team_prices, offers included). Signed out: the plain per-size prices.
+ */
+export async function getTeamSizePrices(eventId: string): Promise<TeamSizePrice[]> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user) {
+    const { data, error } = await supabase.rpc("my_team_prices", { p_event_id: eventId });
+    if (error) throw queryError("my_team_prices", error);
+    return ((data ?? []) as { team_size: number; list_price: number; discount: number; amount: number }[]).map(
+      (r) => ({ size: r.team_size, list: r.list_price, discount: r.discount, amount: r.amount }),
+    );
+  }
+  const { data, error } = await supabase
+    .from("event_team_price_tiers")
+    .select("team_size, fee")
+    .eq("event_id", eventId)
+    .order("team_size", { ascending: true });
+  if (error) throw queryError("event_team_price_tiers", error);
+  return ((data ?? []) as { team_size: number; fee: number }[]).map((r) => ({
+    size: r.team_size,
+    list: r.fee,
+    discount: 0,
+    amount: r.fee,
+  }));
 }
 
 /** Solo-price discounts (paise) keyed by event id — for event cards. */

@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { DEFAULT_LANDING, mergeLanding, type LandingContent } from "@/lib/content/landing";
 import { DEFAULT_ABOUT, mergeAbout, type AboutContent } from "@/lib/content/about";
 import { EMPTY_APPEARANCE, mergeAppearance, type Appearance } from "@/lib/content/appearance";
+import { EMPTY_SOCIAL, mergeSocial, type SocialSettings } from "@/lib/content/social";
 
 /**
  * Reads the editable landing content, merged over built-in defaults. Resilient:
@@ -62,5 +63,26 @@ export const getAppearance = cache(async (): Promise<Appearance> => {
     return mergeAppearance((data as { appearance?: unknown } | null)?.appearance ?? null);
   } catch {
     return EMPTY_APPEARANCE;
+  }
+});
+
+/** Social links (0030) for the navbar; empty on any failure (menu hidden). */
+export const getSocialSettings = cache(async (): Promise<SocialSettings> => {
+  try {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    if (!url || !key) return EMPTY_SOCIAL;
+    const supabase = createAnonClient(url.trim(), key.trim(), {
+      auth: { persistSession: false },
+    });
+    const { data, error } = await supabase
+      .from("site_settings")
+      .select("social")
+      .eq("id", 1)
+      .maybeSingle();
+    if (error) return EMPTY_SOCIAL;
+    return mergeSocial((data as { social?: unknown } | null)?.social ?? null);
+  } catch {
+    return EMPTY_SOCIAL;
   }
 });

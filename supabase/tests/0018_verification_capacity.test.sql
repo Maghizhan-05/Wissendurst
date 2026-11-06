@@ -119,10 +119,10 @@ select pg_temp.check(pg_temp.seats('c') = 1, 'C: rejected intent verified once a
 
 -- D. Expired team intent must re-acquire its complete size atomically
 select pg_temp.as_user(1);
-select (public.register_team(pg_temp.ev('t'), array[pg_temp.u(2), pg_temp.u(3)])).id is not null;
+select (public.register_team(pg_temp.ev('t'), array[pg_temp.u(2), pg_temp.u(3)], 'Test team')).id is not null;
 reset role; select pg_temp.expire_event('t'); set role authenticated;
 select pg_temp.as_user(4);
-select (public.register_team(pg_temp.ev('t'), array[pg_temp.u(5)])).id is not null;
+select (public.register_team(pg_temp.ev('t'), array[pg_temp.u(5)], 'Test team')).id is not null;
 select pg_temp.check(pg_temp.seats('t') = 2, 'D: newer team holds 2 of 4 seats');
 select pg_temp.save('t_snap', pg_temp.snapshot('t'));
 select pg_temp.as_user(0);
@@ -140,7 +140,7 @@ select pg_temp.check(pg_temp.seats('t') = 3, 'D: event now holds exactly the tea
 
 -- E. Team with an active hold on a full event verifies without extra capacity
 select pg_temp.as_user(1);
-select (public.register_team(pg_temp.ev('t2'), array[pg_temp.u(2), pg_temp.u(3)])).id is not null;
+select (public.register_team(pg_temp.ev('t2'), array[pg_temp.u(2), pg_temp.u(3)], 'Test team')).id is not null;
 select pg_temp.check(pg_temp.seats('t2') = 3, 'E: team fills the event');
 select pg_temp.as_user(0);
 select (public.admin_set_payment_status((pg_temp.reg(2,'t2')).id, 'verified', null)).payment_status = 'verified';

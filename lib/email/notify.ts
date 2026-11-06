@@ -107,6 +107,7 @@ export async function notifyRegistrationConfirmed(
   const admin = createAdminClient();
   let recipientIds = [data.registration.profile_id];
   let teamAmount = data.registration.amount;
+  let teamName: string | null | undefined = undefined; // undefined = not a team
   if (data.registration.team_id) {
     const { data: rows } = await admin
       .from("registrations")
@@ -120,6 +121,14 @@ export async function notifyRegistrationConfirmed(
       .filter((r) => r.registration_status === "confirmed")
       .map((r) => r.profile_id);
     teamAmount = team.find((r) => r.is_team_head)?.amount ?? teamAmount;
+    if (team.length > 1) {
+      const { data: t } = await admin
+        .from("teams")
+        .select("name")
+        .eq("id", data.registration.team_id)
+        .maybeSingle();
+      teamName = (t as { name: string | null } | null)?.name ?? null;
+    }
   }
 
   for (const profileId of recipientIds) {
@@ -128,8 +137,8 @@ export async function notifyRegistrationConfirmed(
     if (!p) continue;
     const { subject, html } =
       teamAmount === 0
-        ? registrationEmail(p.full_name, p.participant_id ?? "", data.event, 0)
-        : paymentConfirmedEmail(p.full_name, data.event);
+        ? registrationEmail(p.full_name, p.participant_id ?? "", data.event, 0, teamName)
+        : paymentConfirmedEmail(p.full_name, data.event, teamName);
     try {
       await sendMail({ to: p.email, subject, html });
     } catch (e) {

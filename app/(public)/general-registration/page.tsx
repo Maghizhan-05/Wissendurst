@@ -59,7 +59,7 @@ export default async function GeneralRegistrationPage() {
                 <p className="text-sm text-muted">Sign in with your approved account to take General Registration.</p>
                 <div className="mt-4 flex flex-wrap gap-3">
                   <ButtonLink href="/login?next=/general-registration" withArrow>
-                    Login
+                    Sign in
                   </ButtonLink>
                   <ButtonLink href="/signup" variant="outline">
                     Create an account

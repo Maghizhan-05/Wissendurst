@@ -12,6 +12,7 @@ drop function if exists public.set_my_profile_photo(text);  -- 0026 changed its 
 \ir ../migrations/0023_general_registration.sql
 \ir ../migrations/0024_staff_participant_ids.sql   -- keep the current allocator/approval definitions
 \ir ../migrations/0026_review_hardening.sql
+\ir ../migrations/0030_team_pricing_roster_social.sql
 update public.payment_destination_settings set default_event_upi_id = 'site.default@okbank';
 
 create or replace function pg_temp.expect_error(p_sql text, p_needle text) returns text
@@ -120,7 +121,7 @@ select pg_temp.check((select string_agg(slug, ',' order by slug) from public.eve
 set role authenticated;
 select pg_temp.as_user(10);
 select pg_temp.expect_error($q$select public.register_for_event(pg_temp.ev('cov'))$q$, 'GENERAL_REGISTRATION_REQUIRED');
-select pg_temp.expect_error($q$select public.register_team(pg_temp.ev('covteam'), array[pg_temp.u(11)])$q$, 'GENERAL_REGISTRATION_REQUIRED');
+select pg_temp.expect_error($q$select public.register_team(pg_temp.ev('covteam'), array[pg_temp.u(11)], 'Test team')$q$, 'GENERAL_REGISTRATION_REQUIRED');
 select public.register_for_event(pg_temp.ev('plain'));
 select pg_temp.check((select solo_amount = 50000 from public.my_offer_prices(array[pg_temp.ev('cov')])), '4: non-GR preview shows the full price');
 reset role;
@@ -288,16 +289,16 @@ select pg_temp.as_user(1);
 select public.admin_review_general_registration((pg_temp.gr(14)).id, 'verified');
 select pg_temp.as_user(14);
 select pg_temp.expect_error($q$select public.register_for_event(pg_temp.ev('cov'))$q$, 'EVENT_FULL');
-select pg_temp.expect_error($q$select public.register_team(pg_temp.ev('covteam'), array[pg_temp.u(13), pg_temp.u(10)])$q$, 'TEAM_TOO_LARGE');
-select pg_temp.expect_error($q$select public.register_team(pg_temp.ev('covteam'), array[pg_temp.u(10)])$q$, 'GENERAL_REGISTRATION_REQUIRED');
-select public.register_team(pg_temp.ev('covteam'), array[pg_temp.u(13)]);
+select pg_temp.expect_error($q$select public.register_team(pg_temp.ev('covteam'), array[pg_temp.u(13), pg_temp.u(10)], 'Test team')$q$, 'TEAM_TOO_LARGE');
+select pg_temp.expect_error($q$select public.register_team(pg_temp.ev('covteam'), array[pg_temp.u(10)], 'Test team')$q$, 'GENERAL_REGISTRATION_REQUIRED');
+select public.register_team(pg_temp.ev('covteam'), array[pg_temp.u(13)], 'Test team');
 reset role;
 select pg_temp.check(pg_temp.pid_of(14) = 'W27/GR/0002', '10: second conversion gets W27/GR/0002');
 select pg_temp.check((select count(*) = 2 and bool_and(registration_status = 'confirmed' and amount = 0) from public.registrations
                       where event_id = pg_temp.ev('covteam')), '10: GR team enrolment confirmed at 0 for both members');
 set role authenticated;
 select pg_temp.as_user(13);
-select pg_temp.expect_error($q$select public.register_team(pg_temp.ev('covteam'), array[pg_temp.u(14)])$q$, 'MEMBER_ALREADY_REGISTERED');
+select pg_temp.expect_error($q$select public.register_team(pg_temp.ev('covteam'), array[pg_temp.u(14)], 'Test team')$q$, 'MEMBER_ALREADY_REGISTERED');
 reset role;
 
 -- ── 11. rollback at every conversion step ──────────────────────────────────

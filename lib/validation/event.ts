@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { CATEGORY_SLUG_PATTERN, MAX_CATEGORY_SLUG } from "@/lib/events/categories";
+import { MAX_TEAM_SIZE } from "@/lib/events/team-pricing";
 
 const timeOrEmpty = z
   .string()
@@ -47,15 +48,20 @@ export const eventSchema = z.object({
   upi_id: z.string().trim().max(120).optional().default(""),
   // Team registration.
   team_enabled: z.coerce.boolean().optional().default(false),
-  team_min: z.coerce.number().int().min(1).max(100).optional().default(1),
-  team_max: z.coerce.number().int().min(1).max(100).optional().default(4),
-  team_fee_rupees: z.coerce
+  team_min: z.coerce
     .number()
-    .int("Whole rupees only")
-    .min(0, "Fee can't be negative")
-    .max(1_000_000)
+    .int("Min team size must be a whole number")
+    .min(1, "Min team size must be at least 1")
+    .max(MAX_TEAM_SIZE, `Min team size can be at most ${MAX_TEAM_SIZE}`)
     .optional()
-    .default(0),
+    .default(1),
+  team_max: z.coerce
+    .number()
+    .int("Max team size must be a whole number")
+    .min(1, "Max team size must be at least 1")
+    .max(MAX_TEAM_SIZE, `Max team size can be at most ${MAX_TEAM_SIZE}`)
+    .optional()
+    .default(4),
 });
 
 export type EventInput = z.infer<typeof eventSchema>;

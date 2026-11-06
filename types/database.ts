@@ -78,13 +78,30 @@ export interface EventRow {
   team_enabled: boolean; // registration happens as a team
   team_min: number; // smallest team size (head included)
   team_max: number; // largest team size (head included)
-  team_fee: number; // paise — flat fee for a team of 2+ (lone = registration_fee)
+  /** @deprecated Retired by 0030 (per-size prices: event_team_price_tiers); kept, never used. */
+  team_fee: number;
   archived_at: string | null; // set = archived: hidden publicly, no registration
   archived_by: string | null; // admin who archived it
   /** Included in General Registration (0023); set only via the admin RPC. */
   general_registration_covered: boolean;
   created_at: string;
   updated_at: string;
+}
+
+/** One price per team size (0030): sizes 1..team_max of a team event. */
+export interface EventTeamPriceTierRow {
+  event_id: string;
+  team_size: number;
+  fee: number; // paise
+}
+
+export interface TeamRow {
+  id: string;
+  event_id: string;
+  head_profile_id: string;
+  /** Team name (1–60 chars); null for solo registrations and pre-0030 teams. */
+  name: string | null;
+  created_at: string;
 }
 
 export interface RegistrationRow {
@@ -211,8 +228,12 @@ export interface PaymentEventRow {
 }
 
 /** Joined shapes returned by queries. */
+/** Embedded `team:teams!team_id(name,member_count)`; null when not on a team. */
+export type EmbeddedTeam = { name: string | null; member_count: number } | null;
+
 export interface RegistrationWithEvent extends RegistrationRow {
   event: EventRow;
+  team?: EmbeddedTeam;
 }
 
 export interface RegistrationWithEventAndProfile extends RegistrationRow {
@@ -221,4 +242,5 @@ export interface RegistrationWithEventAndProfile extends RegistrationRow {
     ProfileRow,
     "id" | "participant_id" | "full_name" | "email" | "phone"
   >;
+  team?: EmbeddedTeam;
 }

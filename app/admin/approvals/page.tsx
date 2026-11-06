@@ -27,7 +27,7 @@ export default async function AdminApprovalsPage() {
         <EmptyState
           icon={<CheckCircle2 className="size-8 text-success" />}
           title="All caught up"
-          description="No signups are waiting for approval."
+          description="No sign-ups are waiting for approval."
         />
       ) : (
         <ul className="space-y-3">

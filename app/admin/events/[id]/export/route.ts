@@ -8,6 +8,7 @@ import {
   type PaymentStatus,
   type RegistrationStatus,
 } from "@/lib/constants";
+import { teamDisplay } from "@/lib/team-label";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,6 +26,13 @@ interface ExportRow {
   transaction_id: string | null;
   amount: number;
   registered_at: string;
+  team: string;
+  team_role: string;
+}
+
+/** Participant-entered text can't start a spreadsheet formula. */
+function spreadsheetText(v: string): string {
+  return /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
 }
 
 /** Downloads an .xlsx of participants registered for a single event. */
@@ -49,7 +57,8 @@ export async function GET(
   const { data } = await supabase
     .from("registrations")
     .select(
-      "payment_status, registration_status, transaction_id, amount, registered_at, " +
+      "payment_status, registration_status, transaction_id, amount, registered_at, is_team_head, " +
+        "team:teams!team_id(name, member_count), " +
         "profile:profiles!profile_id(participant_id, full_name, email, phone, college, course, year)",
     )
     .eq("event_id", id)
@@ -65,6 +74,8 @@ export async function GET(
       transaction_id: string | null;
       amount: number;
       registered_at: string;
+      is_team_head: boolean;
+      team: { name: string | null; member_count: number } | null;
       profile:
         | {
             participant_id: string | null;
@@ -92,6 +103,8 @@ export async function GET(
       transaction_id: rec.transaction_id,
       amount: rec.amount,
       registered_at: rec.registered_at,
+      team: teamDisplay(rec.team) ?? "",
+      team_role: teamDisplay(rec.team) ? (rec.is_team_head ? "Head" : "Member") : "",
     };
   });
 
@@ -106,6 +119,8 @@ export async function GET(
     { header: "Email", key: "email", width: 30 },
     { header: "Phone", key: "phone", width: 16 },
     { header: "College", key: "college", width: 28 },
+    { header: "Team", key: "team", width: 28 },
+    { header: "Team role", key: "team_role", width: 12 },
     { header: "Course", key: "course", width: 14 },
     { header: "Year", key: "year", width: 14 },
     { header: "Payment", key: "payment_status", width: 16 },
@@ -130,6 +145,8 @@ export async function GET(
       email: r.email ?? "",
       phone: r.phone ?? "",
       college: r.college ?? "",
+      team: spreadsheetText(r.team),
+      team_role: r.team_role,
       course: r.course ?? "",
       year: r.year ?? "",
       payment_status: PAYMENT_STATUS_LABELS[r.payment_status] ?? r.payment_status,
@@ -143,7 +160,7 @@ export async function GET(
   }
 
   sheet.getColumn("amount").numFmt = "#,##0.00";
-  sheet.autoFilter = { from: "A1", to: "L1" };
+  sheet.autoFilter = { from: "A1", to: "N1" };
 
   const buffer = await workbook.xlsx.writeBuffer();
   const filename = `${event.slug}-participants.xlsx`;

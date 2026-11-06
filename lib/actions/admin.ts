@@ -10,6 +10,7 @@ import {
   eventSchema,
   type EventInput,
 } from "@/lib/validation/event";
+import { parseTierRupees } from "@/lib/events/team-pricing";
 import {
   notifyApproval,
   notifyRegistrationConfirmed,
@@ -42,7 +43,6 @@ function rowFromInput(input: EventInput) {
     description: input.description ?? "",
     eligibility: input.eligibility || null,
     venue: input.venue || null,
-    registration_fee: Math.round(input.registration_fee_rupees * 100),
     event_date: input.event_date || null,
     start_time: input.start_time || null,
     end_time: input.end_time || null,
@@ -59,12 +59,77 @@ function rowFromInput(input: EventInput) {
     parent_event_id: input.parent_event_id ? input.parent_event_id : null,
     upi_id: input.upi_id ? input.upi_id : null,
     // Legacy discount_enabled / discount_amount columns are retired (0019)
-    // in favour of Event Offers and are left untouched.
-    team_enabled: !!input.team_enabled,
-    team_min: 1, // solo allowed; the only limit is the max
-    team_max: Math.max(1, input.team_max ?? 4),
-    team_fee: Math.round((input.team_fee_rupees ?? 0) * 100),
+    // in favour of Event Offers and are left untouched. The fee and team
+    // settings are saved separately by admin_set_event_pricing (0030).
   };
+}
+
+type ParsedPricing =
+  | {
+      ok: true;
+      pricing: {
+        registration_fee: number;
+        team_enabled: boolean;
+        team_min: number;
+        team_max: number;
+        tiers: number[] | null;
+      };
+    }
+  | { ok: false; error: string };
+
+/** Fee + team pricing from the form: one price per team size 1..max. */
+function parsePricing(input: EventInput, formData: FormData): ParsedPricing {
+  const fee = Math.round(input.registration_fee_rupees * 100);
+  const teamMax = input.team_max ?? 4;
+  if (!input.team_enabled) {
+    return {
+      ok: true,
+      pricing: { registration_fee: fee, team_enabled: false, team_min: 1, team_max: teamMax, tiers: null },
+    };
+  }
+  const teamMin = input.team_min ?? 1;
+  if (teamMin > teamMax)
+    return { ok: false, error: "Min team size can't be larger than the max team size." };
+  const raw = Array.from({ length: teamMax }, (_, i) => String(formData.get(`tier_${i + 1}`) ?? ""));
+  const tiers = parseTierRupees(raw, teamMax);
+  if (!tiers.ok) {
+    const first = tiers.errors[0];
+    return {
+      ok: false,
+      error: `Team prices: ${first.size === 1 ? "solo" : `teams of ${first.size}`} — ${first.message.toLowerCase()}.`,
+    };
+  }
+  return {
+    ok: true,
+    pricing: {
+      registration_fee: tiers.prices[0],
+      team_enabled: true,
+      team_min: teamMin,
+      team_max: teamMax,
+      tiers: tiers.prices,
+    },
+  };
+}
+
+async function savePricing(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  eventId: string,
+  pricing: Extract<ParsedPricing, { ok: true }>["pricing"],
+): Promise<string | null> {
+  const { error } = await supabase.rpc("admin_set_event_pricing", {
+    p_event_id: eventId,
+    p_registration_fee: pricing.registration_fee,
+    p_team_enabled: pricing.team_enabled,
+    p_team_min: pricing.team_min,
+    p_team_max: pricing.team_max,
+    p_tiers: pricing.tiers,
+  });
+  if (!error) return null;
+  console.error("admin_set_event_pricing failed:", error);
+  if (error.message?.includes("FORBIDDEN")) return "You don't have permission to manage events.";
+  if (error.message?.includes("EVENT_NOT_FOUND")) return "That event no longer exists.";
+  if (error.message?.includes("INVALID_PRICING")) return "Check the fee and team prices.";
+  return "Could not save the event's prices.";
 }
 
 const MAX_DEPTH = 2; // root(0) -> sub(1) -> sub-sub(2): three tiers.
@@ -179,8 +244,8 @@ function parseEventForm(formData: FormData) {
     parent_event_id: formData.get("parent_event_id") || "",
     upi_id: formData.get("upi_id"),
     team_enabled: formData.get("team_enabled") === "on",
+    team_min: formData.get("team_min") || 1,
     team_max: formData.get("team_max") || 4,
-    team_fee_rupees: formData.get("team_fee_rupees") || 0,
   });
 }
 
@@ -258,14 +323,17 @@ export async function createEvent(
 
   const offers = parseOffers(formData);
   if (!offers.ok) return offers;
+  const pricing = parsePricing(parsed.data, formData);
+  if (!pricing.ok) return pricing;
 
   const supabase = await createClient();
   const parentError = await validateParent(supabase, parsed.data.parent_event_id);
   if (parentError) return { ok: false, error: parentError };
 
+  // Created as a plain event; team settings follow through the pricing RPC.
   const { data: created, error } = await supabase
     .from("events")
-    .insert(rowFromInput(parsed.data))
+    .insert({ ...rowFromInput(parsed.data), registration_fee: pricing.pricing.registration_fee })
     .select("id")
     .single();
   if (error || !created) {
@@ -274,6 +342,14 @@ export async function createEvent(
     const categoryError = mapCategoryAssignmentError(error?.message);
     if (categoryError) return { ok: false, error: categoryError };
     return { ok: false, error: "Could not create event." };
+  }
+  const pricingError = await savePricing(supabase, (created as { id: string }).id, pricing.pricing);
+  if (pricingError) {
+    revalidatePath("/admin/events");
+    return {
+      ok: false,
+      error: `Event created, but its prices weren't saved: ${pricingError} Edit the event to set them.`,
+    };
   }
   if (offers.offers.length > 0) {
     const offerError = await saveOffers(supabase, (created as { id: string }).id, offers.offers);
@@ -306,6 +382,8 @@ export async function updateEvent(
 
   const offers = parseOffers(formData, id);
   if (!offers.ok) return offers;
+  const pricing = parsePricing(parsed.data, formData);
+  if (!pricing.ok) return pricing;
 
   const supabase = await createClient();
   const { data: currentRow } = await supabase
@@ -345,6 +423,11 @@ export async function updateEvent(
     const categoryError = mapCategoryAssignmentError(error.message);
     if (categoryError) return { ok: false, error: categoryError };
     return { ok: false, error: "Could not update event." };
+  }
+  const pricingError = await savePricing(supabase, id, pricing.pricing);
+  if (pricingError) {
+    revalidatePath("/admin/events");
+    return { ok: false, error: `Event saved, but its prices weren't: ${pricingError}` };
   }
   const offerError = await saveOffers(supabase, id, offers.offers);
   if (offerError) {
@@ -544,7 +627,7 @@ export async function setApproval(formData: FormData): Promise<AdminActionState>
     if (msg.includes("PARTICIPANT_ID_SPACE_EXHAUSTED"))
       return { ok: false, error: "No IDs are left in this participant range. Nothing was changed." };
     if (msg.includes("FORBIDDEN"))
-      return { ok: false, error: "You don't have permission to approve signups." };
+      return { ok: false, error: "You don't have permission to approve sign-ups." };
     return { ok: false, error: "Could not update approval." };
   }
 

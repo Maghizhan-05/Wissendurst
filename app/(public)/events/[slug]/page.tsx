@@ -25,8 +25,10 @@ import {
   getEventAncestors,
   getEventCapacityCounts,
   getMyOfferPrices,
+  getTeamSizePrices,
   soloDiscounts,
 } from "@/lib/data/events";
+import { teamPriceSummary } from "@/lib/events/team-pricing";
 import {
   getMyRegistrationForEvent,
   getMyRegisteredEventIds,
@@ -141,7 +143,8 @@ export default async function EventPage({
   // registration RPCs use, so the preview matches the frozen price.
   const offerPrices = (await getMyOfferPrices([event.id]))[event.id];
   const discountPaise = offerPrices?.solo.discount ?? 0;
-  const teamDiscountPaise = offerPrices?.team.discount ?? 0;
+  // Team events: one price per team size (0030), offers applied when signed in.
+  const teamPrices = event.team_enabled ? await getTeamSizePrices(event.id) : [];
 
   // Capacity use = confirmed registrations + live 72-hour payment-intent holds.
   const taken = counts[event.id]?.seatsTaken ?? 0;
@@ -175,9 +178,17 @@ export default async function EventPage({
       icon: IndianRupee,
       label: "Fee",
       value:
-        event.registration_fee === 0
-          ? "Free"
-          : formatINR(event.registration_fee),
+        event.team_enabled && teamPrices.length > 0
+          ? teamPrices.every((t) => t.list === 0)
+            ? "Free"
+            : teamPriceSummary(
+                teamPrices.map((t) => t.list),
+                event.team_min,
+                formatINR,
+              )
+          : event.registration_fee === 0
+            ? "Free"
+            : formatINR(event.registration_fee),
     },
     {
       icon: Users,
@@ -241,13 +252,12 @@ export default async function EventPage({
                 isFull={isFull}
                 fee={event.registration_fee}
                 discountPaise={discountPaise}
-                teamDiscountPaise={teamDiscountPaise}
                 existing={activeRegistration}
                 expiredIntent={expiredIntent}
                 teamEnabled={event.team_enabled}
                 teamMin={event.team_min}
                 teamMax={event.team_max}
-                teamFee={event.team_fee}
+                teamPrices={teamPrices}
                 generalRegistrationCovered={event.general_registration_covered}
                 generallyRegistered={isGeneralRegistrationId(profile?.participant_id)}
                 head={

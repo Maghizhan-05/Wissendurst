@@ -8,6 +8,7 @@ import { getRegistrationAdmin } from "@/lib/data/admin";
 import { getScreenshotSignedUrl } from "@/lib/actions/admin";
 import { requireScope } from "@/lib/auth";
 import { formatEventDate, formatINR } from "@/lib/utils";
+import { teamDisplay } from "@/lib/team-label";
 
 export const metadata: Metadata = { title: "Admin · Payment review" };
 
@@ -104,6 +105,14 @@ export default async function PaymentReviewPage({
               <Row label="Email">{reg.profile.email}</Row>
               <Row label="Phone">{reg.profile.phone ?? "—"}</Row>
               <Row label="Event">{reg.event.title}</Row>
+              {teamDisplay(reg.team) && (
+                <Row label="Team">
+                  <span className="break-words">{teamDisplay(reg.team)}</span>
+                  <span className="ml-2 text-xs text-muted">
+                    {reg.is_team_head ? `head · ${reg.team?.member_count} people` : "member"}
+                  </span>
+                </Row>
+              )}
               <Row label="Amount">
                 <span className="font-mono">{formatINR(reg.amount)}</span>
               </Row>

@@ -7,6 +7,7 @@ import { updateEvent } from "@/lib/actions/admin";
 import {
   getEventByIdAdmin,
   getEventOffersForSource,
+  getEventTeamPrices,
   getOfferTargetOptions,
   getParentEventOptions,
 } from "@/lib/data/admin";
@@ -23,12 +24,13 @@ export default async function EditEventPage({
   const event = await getEventByIdAdmin(id);
   if (!event) notFound();
 
-  const [parents, offers, offerTargets, currentParent, categories] = await Promise.all([
+  const [parents, offers, offerTargets, currentParent, categories, teamPrices] = await Promise.all([
     getParentEventOptions(id),
     getEventOffersForSource(id),
     getOfferTargetOptions(id),
     event.parent_event_id ? getEventByIdAdmin(event.parent_event_id) : Promise.resolve(null),
     getEventCategories(),
+    getEventTeamPrices(id),
   ]);
   // Archived events keep their parent (it may itself be archived and is then
   // not a selectable option); the form submits it unchanged.
@@ -65,6 +67,7 @@ export default async function EditEventPage({
           parents={parents}
           lockedParent={lockedParent}
           categories={categories}
+          teamPrices={teamPrices}
           offers={offers.map((o) => ({
             target_event_id: o.target_event_id,
             discount_rupees: String(o.discount_amount / 100),

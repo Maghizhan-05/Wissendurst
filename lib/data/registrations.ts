@@ -50,7 +50,7 @@ export async function getMyRegistrations(): Promise<
   const [{ data, error }, states] = await Promise.all([
     supabase
       .from("registrations")
-      .select("*, event:events!registrations_event_id_fkey(*)")
+      .select("*, event:events!registrations_event_id_fkey(*), team:teams!team_id(name,member_count)")
       .order("registered_at", { ascending: false }),
     getMyRegistrationStates(),
   ]);
@@ -69,7 +69,7 @@ export async function getMyRegistration(
   const [{ data, error }, states] = await Promise.all([
     supabase
       .from("registrations")
-      .select("*, event:events!registrations_event_id_fkey(*)")
+      .select("*, event:events!registrations_event_id_fkey(*), team:teams!team_id(name,member_count)")
       .eq("id", id)
       .maybeSingle(),
     getMyRegistrationStates(),

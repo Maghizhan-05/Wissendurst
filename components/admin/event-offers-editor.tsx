@@ -112,7 +112,7 @@ export function EventOffersEditor({
                       return (
                         <option key={t.id} value={t.id} disabled={takenElsewhere}>
                           {t.title} — {t.registration_fee === 0 ? "Free" : formatINR(t.registration_fee)}
-                          {t.team_enabled ? ` (team ${formatINR(t.team_fee)})` : ""}
+                          {t.team_enabled ? " solo · priced per team size" : ""}
                           {t.unavailable ? " — archived/unavailable" : ""}
                         </option>
                       );

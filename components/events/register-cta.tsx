@@ -8,6 +8,7 @@ import { Clock, Lock, Ticket, Users } from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { registerForEvent, type ActionResult } from "@/lib/actions/registration";
 import { TeamRegister } from "@/components/events/team-register";
+import type { TeamSizePriceView } from "@/components/events/team-builder";
 import { formatINR } from "@/lib/utils";
 import {
   HOLD_HOURS,
@@ -55,12 +56,11 @@ function RegisterCtaBody({
   isFull,
   fee,
   discountPaise = 0,
-  teamDiscountPaise = 0,
   existing,
   teamEnabled = false,
   teamMin = 2,
   teamMax = 4,
-  teamFee = 0,
+  teamPrices = [],
   head = null,
   generalRegistrationCovered = false,
   generallyRegistered = false,
@@ -78,14 +78,13 @@ function RegisterCtaBody({
   fee: number;
   /** Event Offer discount on the solo price (paise). */
   discountPaise?: number;
-  /** Event Offer discount on the team price when this user heads a team. */
-  teamDiscountPaise?: number;
   /** A live registration (cancelled rows / expired intents are passed as null). */
   existing: (RegistrationRow & { state?: RegistrationState | null }) | null;
   teamEnabled?: boolean;
   teamMin?: number;
   teamMax?: number;
-  teamFee?: number;
+  /** Price of every team size 1..teamMax for this user (offers applied). */
+  teamPrices?: TeamSizePriceView[];
   head?: TeamHead | null;
 }) {
   const [state, formAction, pending] = useActionState(
@@ -233,10 +232,7 @@ function RegisterCtaBody({
       <TeamRegister
         eventId={eventId}
         slug={slug}
-        fee={fee}
-        teamFee={teamFee}
-        soloDiscountPaise={discountPaise}
-        teamDiscountPaise={teamDiscountPaise}
+        prices={teamPrices}
         teamMin={teamMin}
         teamMax={teamMax}
         head={head}

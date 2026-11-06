@@ -10,7 +10,7 @@ import { requireScope } from "@/lib/auth";
 import { APPROVAL_STATUS_LABELS } from "@/lib/constants";
 import { formatEventDate } from "@/lib/utils";
 
-export const metadata: Metadata = { title: "Admin · Review signup" };
+export const metadata: Metadata = { title: "Admin · Review sign-up" };
 
 export default async function ApprovalReviewPage({
   params,
@@ -92,7 +92,7 @@ export default async function ApprovalReviewPage({
             <p className="mb-3 text-sm font-medium text-foreground">Decision</p>
             <ApprovalActions userId={user.id} />
             <p className="mt-3 text-xs text-muted">
-              Approving emails the participant that they can now log in.
+              Approving emails the participant that they can now sign in.
             </p>
           </div>
         </div>

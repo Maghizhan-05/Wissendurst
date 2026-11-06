@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Menu, X, LayoutDashboard, Shield, Ticket } from "lucide-react";
 import { ThemeToggle } from "./theme-toggle";
+import { SocialMenu } from "./social-menu";
+import type { SocialLink } from "@/lib/content/social";
 import { ButtonLink } from "@/components/ui/button";
 import { Container } from "@/components/ui/container";
 import { cn } from "@/lib/utils";
@@ -23,7 +25,7 @@ const LINKS = [
   { href: "/about", label: "About" },
 ];
 
-export function Navbar({ user }: { user: NavUser }) {
+export function Navbar({ user, socialLinks = [] }: { user: NavUser; socialLinks?: SocialLink[] }) {
   const pathname = usePathname();
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
@@ -71,6 +73,7 @@ export function Navbar({ user }: { user: NavUser }) {
 
         <div className="hidden items-center gap-2 md:flex">
           <ThemeToggle />
+          <SocialMenu links={socialLinks} />
           {user?.isAdmin && (
             <ButtonLink href="/admin" variant="ghost" size="sm">
               <Shield className="size-4" /> Admin
@@ -88,10 +91,10 @@ export function Navbar({ user }: { user: NavUser }) {
           ) : (
             <>
               <ButtonLink href="/login" variant="ghost" size="sm">
-                Login
+                Sign in
               </ButtonLink>
               <ButtonLink href="/signup" size="sm" withArrow>
-                Register
+                Sign up
               </ButtonLink>
             </>
           )}
@@ -99,6 +102,7 @@ export function Navbar({ user }: { user: NavUser }) {
 
         <div className="flex items-center gap-2 md:hidden">
           <ThemeToggle />
+          <SocialMenu links={socialLinks} />
           <button
             type="button"
             aria-label="Toggle menu"
@@ -141,10 +145,10 @@ export function Navbar({ user }: { user: NavUser }) {
               ) : (
                 <>
                   <ButtonLink href="/login" variant="secondary" className="w-full">
-                    Login
+                    Sign in
                   </ButtonLink>
                   <ButtonLink href="/signup" className="w-full" withArrow>
-                    Register
+                    Sign up
                   </ButtonLink>
                 </>
               )}

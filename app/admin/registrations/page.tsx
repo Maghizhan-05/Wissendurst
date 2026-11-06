@@ -12,6 +12,7 @@ import {
 } from "@/lib/constants";
 import { formatEventDate } from "@/lib/utils";
 import { requireScope } from "@/lib/auth";
+import { teamDisplay } from "@/lib/team-label";
 
 export const metadata: Metadata = { title: "Admin · Registrations" };
 
@@ -134,7 +135,15 @@ export default async function AdminRegistrationsPage({
                     </p>
                     <p className="text-foreground">{r.profile.full_name}</p>
                   </td>
-                  <td className="px-4 py-3 text-muted">{r.event.title}</td>
+                  <td className="px-4 py-3 text-muted">
+                    {r.event.title}
+                    {teamDisplay(r.team) && (
+                      <span className="mt-0.5 block max-w-56 truncate text-xs">
+                        Team: <span className="text-foreground">{teamDisplay(r.team)}</span>
+                        {r.is_team_head ? " · head" : ""}
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-3">
                     <PaymentBadge status={r.payment_status} />
                   </td>

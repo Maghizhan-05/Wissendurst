@@ -161,12 +161,12 @@ select pg_temp.expect_error($q$select public.register_for_event(pg_temp.ev('c'))
 -- 12. Teams: atomic capacity, head pays, holds follow the head, cascade on verify
 select pg_temp.as_user(1);
 select pg_temp.expect_error($q$select public.register_for_event(pg_temp.ev('tm'))$q$, 'TEAM_EVENT');
-select (public.register_team(pg_temp.ev('tm'), array[pg_temp.u(5), pg_temp.u(6)])).amount = 20000 as team_head_pays_flat_fee;
+select (public.register_team(pg_temp.ev('tm'), array[pg_temp.u(5), pg_temp.u(6)], 'Test team')).amount = 20000 as team_head_pays_flat_fee;
 select pg_temp.check(pg_temp.seats('tm') = 3, 'team of 3 holds 3 seats');
 reset role; select pg_temp.check((select bool_and(amount = 0 and registration_status = 'pending') from public.registrations
    where event_id = pg_temp.ev('tm') and not is_team_head), 'teammates are pending intents with no charge'); set role authenticated;
 select pg_temp.as_user(4);
-select pg_temp.expect_error(format($q$select public.register_team(pg_temp.ev('tm'), array[%L::uuid])$q$, pg_temp.u(2)), 'EVENT_FULL');
+select pg_temp.expect_error(format($q$select public.register_team(pg_temp.ev('tm'), array[%L::uuid], 'Test team')$q$, pg_temp.u(2)), 'EVENT_FULL');
 reset role; select pg_temp.check((select count(*) from public.registrations where event_id = pg_temp.ev('tm')) = 3
    and (select count(*) from public.teams where event_id = pg_temp.ev('tm')) = 1, 'failed team registration left no rows'); set role authenticated;
 select pg_temp.as_user(5);
@@ -183,11 +183,11 @@ select pg_temp.check((select confirmed = 3 from public.event_capacity_counts() w
 
 -- 13. Expired team intents: teammates' rows are reused by a new team
 select pg_temp.as_user(2);
-select (public.register_team(pg_temp.ev('tm2'), array[pg_temp.u(4)])).id is not null as team2_created;
+select (public.register_team(pg_temp.ev('tm2'), array[pg_temp.u(4)], 'Test team')).id is not null as team2_created;
 reset role; select pg_temp.expire('tm2'); set role authenticated;
 select pg_temp.check(pg_temp.seats('tm2') = 0, 'expired team intent frees all seats');
 select pg_temp.as_user(4);
-select (public.register_team(pg_temp.ev('tm2'), array[pg_temp.u(3), pg_temp.u(6)])).is_team_head as u4_new_head;
+select (public.register_team(pg_temp.ev('tm2'), array[pg_temp.u(3), pg_temp.u(6)], 'Test team')).is_team_head as u4_new_head;
 reset role; select pg_temp.check((select count(*) from public.registrations where profile_id = pg_temp.u(4) and event_id = pg_temp.ev('tm2')) = 1,
   'expired teammate row reused, not duplicated'); set role authenticated;
 select pg_temp.check(pg_temp.seats('tm2') = 3, 'new team holds 3 seats');

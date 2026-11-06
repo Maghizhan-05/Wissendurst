@@ -28,6 +28,12 @@ const RPC_ERRORS: Record<string, string> = {
     "One of the teammates isn't an approved participant yet.",
   MEMBER_ALREADY_REGISTERED:
     "You or a teammate is already registered for this event.",
+  TEAM_NAME_REQUIRED: "Give your team a name (1–60 characters).",
+  TEAM_NAME_INVALID: "Team names can be at most 60 characters, without line breaks.",
+  TEAM_PRICE_MISSING: "This event has no price for a team of that size yet. Contact the organizers.",
+  ROSTER_LOCKED:
+    "This team can't be changed any more — payment has been submitted, or the seat hold has ended.",
+  REGISTRATION_NOT_FOUND: "That registration wasn't found, or you aren't its team head.",
 };
 
 function mapRpcError(message: string | undefined): string {
@@ -136,6 +142,8 @@ export type MemberLookup =
 export async function lookupTeamMember(
   participantId: string,
   eventId: string,
+  /** Editing an existing team: its own members don't count as registered. */
+  headRegistrationId?: string,
 ): Promise<MemberLookup> {
   const supabase = await createClient();
   const {
@@ -160,10 +168,28 @@ export async function lookupTeamMember(
   if (p.approval_status !== "approved")
     return { ok: false, error: `${pid} isn't an approved participant yet.` };
 
+  // Editing: the team is resolved through the caller's own head row (RLS).
+  let excludeTeamId: string | null = null;
+  if (headRegistrationId) {
+    const { data: own } = await supabase
+      .from("registrations")
+      .select("team_id, event_id, is_team_head, profile_id")
+      .eq("id", headRegistrationId)
+      .maybeSingle();
+    const head = own as
+      | { team_id: string | null; event_id: string; is_team_head: boolean; profile_id: string }
+      | null;
+    if (!head || head.profile_id !== user.id || !head.is_team_head || head.event_id !== eventId)
+      return { ok: false, error: "That registration wasn't found." };
+    excludeTeamId = head.team_id;
+  }
+
   // Cancelled rows and expired payment intents don't block a new team.
   const { data: blocked, error: blockErr } = await admin.rpc(
     "registration_blocks_new",
-    { p_profile_id: p.id, p_event_id: eventId },
+    excludeTeamId
+      ? { p_profile_id: p.id, p_event_id: eventId, p_exclude_team_id: excludeTeamId }
+      : { p_profile_id: p.id, p_event_id: eventId },
   );
   if (blockErr) {
     console.error("registration_blocks_new failed:", blockErr);
@@ -195,13 +221,8 @@ export async function registerTeam(formData: FormData): Promise<ActionResult> {
   const slug = String(formData.get("slug") ?? "");
   if (!eventId) return { ok: false, error: "Missing event." };
 
-  let memberIds: string[] = [];
-  try {
-    const parsed = JSON.parse(String(formData.get("member_ids") ?? "[]"));
-    if (Array.isArray(parsed)) memberIds = parsed.map(String);
-  } catch {
-    memberIds = [];
-  }
+  const memberIds = readMemberIds(formData);
+  const teamName = String(formData.get("team_name") ?? "").trim();
 
   const supabase = await createClient();
   const {
@@ -212,6 +233,7 @@ export async function registerTeam(formData: FormData): Promise<ActionResult> {
   const { data, error } = await supabase.rpc("register_team", {
     p_event_id: eventId,
     p_member_ids: memberIds,
+    p_team_name: teamName || null,
   });
   if (error) {
     console.error("register_team failed:", error);
@@ -243,6 +265,59 @@ export async function registerTeam(formData: FormData): Promise<ActionResult> {
     redirect("/dashboard/registrations?joined=1");
   }
   redirect(`/dashboard/payment/${reg.id}`);
+}
+
+function readMemberIds(formData: FormData): string[] {
+  try {
+    const parsed = JSON.parse(String(formData.get("member_ids") ?? "[]"));
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Team head changes teammates and/or the team name before paying (0030).
+ * Removed teammates' registrations are deleted; the price follows the new
+ * size; the seat hold is never extended. Refused once payment evidence exists.
+ */
+export async function editTeamRoster(formData: FormData): Promise<ActionResult> {
+  const registrationId = String(formData.get("registration_id") ?? "");
+  if (!registrationId) return { ok: false, error: "Missing registration." };
+  const memberIds = readMemberIds(formData);
+  const teamName = String(formData.get("team_name") ?? "").trim();
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect(`/login?next=/dashboard/payment/${registrationId}`);
+
+  const { data, error } = await supabase.rpc("edit_team_roster", {
+    p_registration_id: registrationId,
+    p_member_ids: memberIds,
+    p_team_name: teamName || null,
+  });
+  if (error) {
+    console.error("edit_team_roster failed:", error);
+    return { ok: false, error: mapRpcError(error.message) };
+  }
+  const reg = (Array.isArray(data) ? data[0] : data) as RegistrationRow | null;
+
+  revalidatePath("/dashboard/registrations");
+  revalidatePath(`/dashboard/payment/${registrationId}`);
+  revalidatePath("/admin/registrations");
+
+  // Shrinking to a free size confirms the team straight away.
+  if (reg?.registration_status === "confirmed") {
+    try {
+      await notifyRegistrationConfirmed(reg.id);
+    } catch (e) {
+      console.error("team confirmation email failed:", e);
+    }
+    redirect("/dashboard/registrations?joined=1");
+  }
+  return { ok: true };
 }
 
 /** Cancels the current user's still-unpaid registration. */

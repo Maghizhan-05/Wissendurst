@@ -8,6 +8,7 @@ import { activeCategories, type EventCategoryInfo } from "@/lib/events/categorie
 import type { AdminActionState } from "@/lib/actions/admin";
 import type { OfferTargetOption } from "@/lib/data/admin";
 import { EventOffersEditor, type OfferDraft } from "@/components/admin/event-offers-editor";
+import { TeamPricingEditor } from "@/components/admin/team-pricing-editor";
 import type { EventRow } from "@/types/database";
 
 type Action = (
@@ -24,7 +25,10 @@ export function EventForm({
   offerTargets = [],
   lockedParent,
   categories,
+  teamPrices = [],
 }: {
+  /** Saved per-size team prices (paise, index 0 = size 1). */
+  teamPrices?: number[];
   /**
    * All event categories. Active ones are offered; an archived category is
    * shown only when it is this event's current one (it may keep it).
@@ -93,7 +97,7 @@ export function EventForm({
             ))}
           </Select>
         </Field>
-        <Field label="Registration fee (₹)" htmlFor="fee" hint="Per-person fee (0 = free). For team events this is what a lone participant pays." required>
+        <Field label="Registration fee (₹)" htmlFor="fee" hint="Per-person fee (0 = free). For team events the prices under Team registration apply instead." required>
           <Input
             id="fee"
             name="registration_fee_rupees"
@@ -247,54 +251,13 @@ export function EventForm({
         </label>
       </div>
 
-      <div className="rounded-xl border border-border bg-surface-2/40 p-4">
-        <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-          <input
-            type="checkbox"
-            name="team_enabled"
-            defaultChecked={event?.team_enabled ?? false}
-            className="size-4 accent-[var(--brand)]"
-          />
-          Team registration
-        </label>
-        <p className="mt-1 text-xs text-muted">
-          When on, participants register as a team. The team head enters
-          teammates by their <strong>participant ID</strong> (W27/E/…), everyone
-          is grouped, and the head pays the <strong>flat team fee</strong> below.
-          A person may also join on their own (team of one) — they pay the
-          per-person registration fee; nobody can be on more than one team per
-          event.
-        </p>
-        <div className="mt-3 grid max-w-md grid-cols-2 gap-4">
-          <Field
-            label="Max team size"
-            htmlFor="team_max"
-            hint="Head included. 1 up to this."
-          >
-            <Input
-              id="team_max"
-              name="team_max"
-              type="number"
-              min={1}
-              max={100}
-              defaultValue={event?.team_max ?? 4}
-            />
-          </Field>
-          <Field
-            label="Team flat fee (₹)"
-            htmlFor="team_fee_rupees"
-            hint="Charged once to a team of 2+. A lone participant pays the registration fee above."
-          >
-            <Input
-              id="team_fee_rupees"
-              name="team_fee_rupees"
-              type="number"
-              min={0}
-              defaultValue={event ? event.team_fee / 100 : 0}
-            />
-          </Field>
-        </div>
-      </div>
+      <TeamPricingEditor
+        enabled={event?.team_enabled ?? false}
+        teamMin={event?.team_min ?? 1}
+        teamMax={event?.team_max ?? 4}
+        prices={teamPrices}
+        soloFeeRupees={event ? String(event.registration_fee / 100) : "0"}
+      />
 
       <EventOffersEditor initialOffers={offers} targets={offerTargets} />
 

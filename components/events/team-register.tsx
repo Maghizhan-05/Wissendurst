@@ -1,17 +1,18 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState, useTransition } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { UserPlus, X, Crown, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/field";
+import { registerTeam, type ActionResult, type TeamMember } from "@/lib/actions/registration";
 import {
-  lookupTeamMember,
-  registerTeam,
-  type ActionResult,
-  type TeamMember,
-} from "@/lib/actions/registration";
-import { formatINR } from "@/lib/utils";
+  AddTeammate,
+  MemberRow,
+  TeamNameField,
+  TotalToPay,
+  priceFor,
+  teamNameError,
+  type TeamSizePriceView,
+} from "@/components/events/team-builder";
 
 type Head = {
   id: string;
@@ -24,33 +25,25 @@ type Head = {
 export function TeamRegister({
   eventId,
   slug,
-  fee,
-  teamFee,
-  soloDiscountPaise = 0,
-  teamDiscountPaise = 0,
+  prices,
   teamMin,
   teamMax,
   head,
 }: {
   eventId: string;
   slug: string;
-  fee: number; // lone-participant fee (team of one)
-  teamFee: number; // flat fee for a team of 2+
-  /** Event Offer discount the head qualifies for (same rule as the RPC). */
-  soloDiscountPaise?: number;
-  teamDiscountPaise?: number;
+  /** Price of every team size 1..teamMax for this head (offers applied). */
+  prices: TeamSizePriceView[];
   teamMin: number;
   teamMax: number;
   head: Head;
 }) {
   const [members, setMembers] = useState<TeamMember[]>([]);
-  const [pid, setPid] = useState("");
-  const [looking, startLookup] = useTransition();
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [name, setName] = useState("");
+  const [nameTouched, setNameTouched] = useState(false);
 
   const [state, formAction, submitting] = useActionState(
-    async (_prev: ActionResult | null, formData: FormData) =>
-      registerTeam(formData),
+    async (_prev: ActionResult | null, formData: FormData) => registerTeam(formData),
     null,
   );
   useEffect(() => {
@@ -58,71 +51,42 @@ export function TeamRegister({
   }, [state]);
 
   const teamSize = members.length + 1; // + head
-  const atMax = teamSize >= teamMax;
-  const canSubmit = teamSize >= teamMin && teamSize <= teamMax;
-  // A team of one pays the lone fee; a real team pays the flat team fee. The
-  // head's best Event Offer comes off that price (never below zero).
-  const listTotal = teamSize <= 1 ? fee : teamFee;
-  const offer = Math.min(teamSize <= 1 ? soloDiscountPaise : teamDiscountPaise, listTotal);
-  const total = listTotal - offer;
-
-  function addMember() {
-    const value = pid.trim();
-    if (!value) return;
-    if (atMax) {
-      toast.error(`Teams can have at most ${teamMax} members.`);
-      return;
-    }
-    if (
-      value.toLowerCase() === head.participant_id.toLowerCase()
-    ) {
-      toast.error("You're already the team head.");
-      return;
-    }
-    if (members.some((m) => m.participant_id.toLowerCase() === value.toLowerCase())) {
-      toast.error("That teammate is already added.");
-      return;
-    }
-    startLookup(async () => {
-      const res = await lookupTeamMember(value, eventId);
-      if (!res.ok) {
-        toast.error(res.error);
-        return;
-      }
-      if (res.member.id === head.id || members.some((m) => m.id === res.member.id)) {
-        toast.error("That teammate is already on the team.");
-        return;
-      }
-      setMembers((prev) => [...prev, res.member]);
-      setPid("");
-      inputRef.current?.focus();
-    });
-  }
+  const needsName = teamSize >= 2;
+  const nameError = needsName ? teamNameError(name) : null;
+  const sizeOk = teamSize >= teamMin && teamSize <= teamMax;
+  const price = priceFor(prices, teamSize);
+  const canSubmit = sizeOk && !nameError && price !== null;
 
   return (
     <div className="rounded-2xl border border-border bg-surface p-5">
-      <div className="flex items-center justify-between">
-        <h3 className="font-display text-lg font-semibold text-foreground">
-          Register your team
-        </h3>
-        <span className="text-sm text-muted">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="font-display text-lg font-semibold text-foreground">Register your team</h3>
+        <span className="shrink-0 text-sm text-muted">
           {teamSize} / {teamMax}
           {teamMin > 1 ? ` · min ${teamMin}` : ""}
         </span>
       </div>
       <p className="mt-1 text-sm text-muted">
-        Add teammates by their participant ID (W27/E/…), or register on your own.
-        You pay one flat team fee; everyone is confirmed once your payment is
-        verified.
+        {teamMin > 1 ? "Name your team and add" : "Add"} teammates by their participant ID (W27/E/…)
+        {teamMin > 1 ? "." : ", or register on your own."} You pay once for the whole team; everyone is
+        confirmed once your payment is verified.
       </p>
 
-      {/* Head */}
+      {needsName && (
+        <div className="mt-4">
+          <TeamNameField
+            value={name}
+            onChange={(v) => {
+              setName(v);
+              setNameTouched(true);
+            }}
+            showError={nameTouched}
+          />
+        </div>
+      )}
+
       <div className="mt-4 space-y-2">
-        <MemberRow
-          title={`${head.full_name} (you)`}
-          subtitle={`${head.participant_id} · ${head.email}`}
-          head
-        />
+        <MemberRow title={`${head.full_name} (you)`} subtitle={`${head.participant_id} · ${head.email}`} head />
         {members.map((m) => (
           <MemberRow
             key={m.id}
@@ -133,115 +97,45 @@ export function TeamRegister({
         ))}
       </div>
 
-      {/* Add teammate */}
-      <div className="mt-4 flex gap-2">
-        <Input
-          ref={inputRef}
-          value={pid}
-          onChange={(e) => setPid(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              addMember();
-            }
-          }}
-          placeholder="Teammate ID — W27/E/0007"
-          className="font-mono"
-          disabled={atMax || looking}
+      <div className="mt-4">
+        <AddTeammate
+          eventId={eventId}
+          headId={head.id}
+          headParticipantId={head.participant_id}
+          members={members}
+          full={teamSize >= teamMax}
+          teamMax={teamMax}
+          onAdd={(m) => setMembers((prev) => [...prev, m])}
         />
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={addMember}
-          loading={looking}
-          disabled={atMax}
-        >
-          <UserPlus className="size-4" /> Add
-        </Button>
       </div>
 
-      {/* Submit */}
-      <form action={formAction} className="mt-5 border-t border-border pt-5">
+      <form
+        action={formAction}
+        onSubmit={() => setNameTouched(true)}
+        className="mt-5 border-t border-border pt-5"
+      >
         <input type="hidden" name="event_id" value={eventId} />
         <input type="hidden" name="slug" value={slug} />
-        <input
-          type="hidden"
-          name="member_ids"
-          value={JSON.stringify(members.map((m) => m.id))}
-        />
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm text-muted">Total to pay</p>
-            <p className="font-display text-2xl font-semibold text-foreground">
-              {offer > 0 && (
-                <span className="mr-2 align-middle font-mono text-sm font-normal text-muted line-through">
-                  {formatINR(listTotal)}
-                </span>
-              )}
-              {total === 0 ? "Free" : formatINR(total)}
-            </p>
-            {offer > 0 && (
-              <p className="text-xs font-medium text-success">
-                Event offer: you save {formatINR(offer)}
-              </p>
-            )}
-            <p className="text-xs text-muted">
-              {total === 0
-                ? "Free"
-                : teamSize <= 1
-                  ? "Individual fee (team of one)"
-                  : "Flat fee for the whole team"}
-            </p>
-          </div>
+        <input type="hidden" name="member_ids" value={JSON.stringify(members.map((m) => m.id))} />
+        <input type="hidden" name="team_name" value={needsName ? name.trim() : ""} />
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <TotalToPay price={price} size={teamSize} />
           <Button type="submit" size="lg" loading={submitting} disabled={!canSubmit} withArrow>
             Register team
           </Button>
         </div>
         {!canSubmit && (
-          <p className="mt-3 flex items-center gap-1.5 text-xs text-muted">
-            {looking && <Loader2 className="size-3.5 animate-spin" />}
+          <p className="mt-3 text-xs text-muted">
             {teamSize < teamMin
-              ? `Add ${teamMin - teamSize} more teammate${teamMin - teamSize === 1 ? "" : "s"} to reach the minimum of ${teamMin}.`
-              : `Teams can have at most ${teamMax} members.`}
+              ? `Add ${teamMin - teamSize} more teammate${teamMin - teamSize === 1 ? "" : "s"} to reach the minimum of ${teamMin}${needsName && nameError ? ", and name your team" : ""}.`
+              : teamSize > teamMax
+                ? `Teams can have at most ${teamMax} members.`
+                : nameError
+                  ? "Name your team to register."
+                  : null}
           </p>
         )}
       </form>
-    </div>
-  );
-}
-
-function MemberRow({
-  title,
-  subtitle,
-  head,
-  onRemove,
-}: {
-  title: string;
-  subtitle: string;
-  head?: boolean;
-  onRemove?: () => void;
-}) {
-  return (
-    <div className="flex items-center justify-between rounded-xl border border-border bg-surface-2/40 px-3 py-2.5">
-      <div className="flex min-w-0 items-center gap-2.5">
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-brand/12 text-brand">
-          {head ? <Crown className="size-4" /> : <UserPlus className="size-4" />}
-        </span>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-foreground">{title}</p>
-          <p className="truncate text-xs text-muted">{subtitle}</p>
-        </div>
-      </div>
-      {onRemove && (
-        <button
-          type="button"
-          onClick={onRemove}
-          className="rounded-md p-1.5 text-muted hover:bg-surface-2 hover:text-alert"
-          aria-label="Remove teammate"
-        >
-          <X className="size-4" />
-        </button>
-      )}
     </div>
   );
 }

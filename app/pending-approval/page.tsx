@@ -28,7 +28,7 @@ export default async function PendingApprovalPage() {
         <p className="mt-3 max-w-md text-muted">
           {profile?.approval_status === "rejected"
             ? "Your account could not be approved. Please contact the organizers if you think this is a mistake."
-            : "Your account and ID card are with an organizer for review. You'll get an email the moment you're approved — then you can log in and register."}
+            : "Your account and ID card are with an organizer for review. You'll get an email the moment you're approved — then you can sign in and register."}
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           <ButtonLink href="/events" variant="outline" withArrow>
