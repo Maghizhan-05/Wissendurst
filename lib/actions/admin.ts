@@ -13,6 +13,7 @@ import {
 import { parseTierRupees } from "@/lib/events/team-pricing";
 import {
   notifyApproval,
+  notifyPaymentRejected,
   notifyRegistrationConfirmed,
   notifyRejection,
 } from "@/lib/email/notify";
@@ -562,8 +563,8 @@ export async function setPaymentStatus(
     .select("payment_status")
     .eq("id", registrationId)
     .maybeSingle();
-  const wasVerified =
-    (before as { payment_status: string } | null)?.payment_status === "verified";
+  const previous = (before as { payment_status: string } | null)?.payment_status;
+  const wasVerified = previous === "verified";
 
   const { error } = await supabase.rpc("admin_set_payment_status", {
     p_registration_id: registrationId,
@@ -595,6 +596,15 @@ export async function setPaymentStatus(
   revalidatePath("/admin/registrations");
   revalidatePath("/admin");
   revalidatePath("/dashboard/registrations");
+
+  // A new rejection tells the payer how to submit new evidence (0031).
+  if (status === "rejected" && previous !== "rejected") {
+    try {
+      await notifyPaymentRejected(registrationId, note);
+    } catch (e) {
+      console.error("payment-rejected email failed:", e);
+    }
+  }
 
   // The registration confirmation goes out only now that payment is verified
   // (to every member of a team), and only once.
@@ -628,6 +638,11 @@ export async function setApproval(formData: FormData): Promise<AdminActionState>
       return { ok: false, error: "No IDs are left in this participant range. Nothing was changed." };
     if (msg.includes("FORBIDDEN"))
       return { ok: false, error: "You don't have permission to approve sign-ups." };
+    if (msg.includes("INVALID_APPROVAL_TRANSITION"))
+      return {
+        ok: false,
+        error: "Only pending applications can be approved or rejected. Reload to see the current status.",
+      };
     return { ok: false, error: "Could not update approval." };
   }
 

@@ -8,6 +8,7 @@ import { landingSchema } from "@/lib/content/landing";
 import { aboutSchema } from "@/lib/content/about";
 import { appearanceSchema } from "@/lib/content/appearance";
 import { socialSchema } from "@/lib/content/social";
+import { scheduleSchema } from "@/lib/content/schedule";
 
 export type ContentState =
   | { ok: false; error: string }
@@ -33,7 +34,7 @@ function firstIssue(error: z.ZodError): string {
 }
 
 async function saveColumn(
-  column: "content" | "about" | "appearance" | "social",
+  column: "content" | "about" | "appearance" | "social" | "schedule",
   value: unknown,
 ): Promise<string | null> {
   const supabase = await createClient();
@@ -121,4 +122,23 @@ export async function updateSocialLinks(
   // The menu is in the public navbar on every page.
   revalidatePath("/", "layout");
   return { ok: true, message: "Social links updated." };
+}
+
+export async function updateScheduleContent(
+  _prev: ContentState,
+  formData: FormData,
+): Promise<ContentState> {
+  await requireScope("content");
+  const raw = readJson(formData, "schedule");
+  if (raw === undefined) return { ok: false, error: "Could not read the form data." };
+
+  const result = scheduleSchema.safeParse(raw);
+  if (!result.success) return { ok: false, error: firstIssue(result.error) };
+
+  const err = await saveColumn("schedule", result.data);
+  if (err) return { ok: false, error: err };
+
+  revalidatePath("/schedule");
+  revalidatePath("/admin/content/schedule");
+  return { ok: true, message: "Schedule page updated." };
 }

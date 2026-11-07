@@ -8,6 +8,7 @@ import {
   generalRegistrationVerifiedEmail,
   approvalRejectedEmail,
   paymentConfirmedEmail,
+  paymentRejectedEmail,
   paymentUnderReviewEmail,
   registrationEmail,
   signupPendingEmail,
@@ -155,7 +156,16 @@ export async function notifyPaymentUnderReview(registrationId: string): Promise<
     data.event,
     data.registration.amount,
     data.registration.transaction_id,
+    data.registration.id,
   );
+  await sendMail({ to: data.profile.email, subject, html });
+}
+
+/** Payment rejected: tell the payer (team head) how to submit new evidence. */
+export async function notifyPaymentRejected(registrationId: string, note: string | null): Promise<void> {
+  const data = await loadRegistration(registrationId);
+  if (!data || data.registration.payment_status !== "rejected") return;
+  const { subject, html } = paymentRejectedEmail(data.profile.full_name, data.event, registrationId, note);
   await sendMail({ to: data.profile.email, subject, html });
 }
 

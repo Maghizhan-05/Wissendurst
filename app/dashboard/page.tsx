@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CalendarCheck, Clock, CircleAlert, Ticket } from "lucide-react";
+import { CalendarCheck, Ticket } from "lucide-react";
 import { ParticipantIdCard } from "@/components/dashboard/participant-id-card";
 import { RegistrationFlipCard } from "@/components/dashboard/registration-flip-card";
 import { StatCard } from "@/components/ui/card";
@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/ui/misc";
 import { ButtonLink } from "@/components/ui/button";
 import { requireProfile } from "@/lib/auth";
 import { getMyRegistrations } from "@/lib/data/registrations";
-import { formatINR } from "@/lib/utils";
+import { teamDisplay } from "@/lib/team-label";
 import { GeneralRegistrationCard } from "@/components/general-registration/dashboard-card";
 import {
   getGeneralRegistrationSettings,
@@ -31,17 +31,9 @@ export default async function DashboardPage() {
     (isGeneralRegistrationOpen(grSettings) &&
       canTakeGeneralRegistration(profile.participant_id, profile.approval_status));
 
-  const confirmed = registrations.filter(
-    (r) => r.registration_status === "confirmed",
-  ).length;
-  const pendingPayment = registrations.filter((r) =>
-    ["unpaid", "uploaded", "under_review", "rejected", "duplicate"].includes(
-      r.payment_status,
-    ),
-  ).length;
-  const amountDue = registrations
-    .filter((r) => ["unpaid", "rejected", "duplicate"].includes(r.payment_status))
-    .reduce((sum, r) => sum + r.amount, 0);
+  // Confirmed registrations only (getMyRegistrations); unpaid intents and
+  // payments under review are reached from the event or payment page.
+  const teams = registrations.filter((r) => teamDisplay(r.team) !== null).length;
 
   const recent = registrations.slice(0, 3);
 
@@ -51,14 +43,8 @@ export default async function DashboardPage() {
       <div className="grid gap-6 lg:grid-cols-[1.1fr_1.4fr]">
         <ParticipantIdCard profile={profile} />
         <div className="grid grid-cols-2 gap-4">
-          <StatCard label="Registrations" value={registrations.length} tone="brand" />
-          <StatCard label="Confirmed" value={confirmed} tone="success" />
-          <StatCard label="Awaiting payment" value={pendingPayment} tone="warning" />
-          <StatCard
-            label="Amount due"
-            value={amountDue === 0 ? "—" : formatINR(amountDue)}
-            tone={amountDue > 0 ? "alert" : "neutral"}
-          />
+          <StatCard label="Registered events" value={registrations.length} tone="brand" />
+          <StatCard label="As part of a team" value={teams} tone="success" />
         </div>
       </div>
 
@@ -99,27 +85,10 @@ export default async function DashboardPage() {
         )}
       </section>
 
-      {amountDue > 0 && (
-        <div className="flex items-start gap-3 rounded-2xl border border-warning/30 bg-warning/10 p-5">
-          <CircleAlert className="mt-0.5 size-5 shrink-0 text-warning" />
-          <div className="text-sm">
-            <p className="font-medium text-foreground">
-              You have {formatINR(amountDue)} in unpaid registrations.
-            </p>
-            <p className="mt-1 text-muted">
-              Complete payment and upload your screenshot so organizers can verify
-              your spot.
-            </p>
-          </div>
-        </div>
-      )}
-
       <div className="hidden gap-4 sm:flex">
         <span className="inline-flex items-center gap-2 text-sm text-muted">
-          <CalendarCheck className="size-4 text-success" /> Confirmed = spot secured
-        </span>
-        <span className="inline-flex items-center gap-2 text-sm text-muted">
-          <Clock className="size-4 text-warning" /> Under review = awaiting organizer
+          <CalendarCheck className="size-4 text-success" /> Events appear here once your spot is
+          confirmed — free events straight away, paid events after your payment is verified.
         </span>
       </div>
     </div>

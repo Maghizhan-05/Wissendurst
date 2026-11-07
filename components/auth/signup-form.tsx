@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Label } from "@/components/ui/field";
 import { signUp, type AuthState } from "@/lib/actions/auth";
 
-const YEARS = [
+export const YEARS = [
   "1st Year",
   "2nd Year",
   "3rd Year",

@@ -8,10 +8,16 @@ import { redirect } from "next/navigation";
 
 export const metadata: Metadata = { title: "Awaiting approval" };
 
-export default async function PendingApprovalPage() {
+export default async function PendingApprovalPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ resubmitted?: string }>;
+}) {
   const profile = await getProfile();
-  // Approved users don't belong here.
+  // Approved users don't belong here; rejected applicants resubmit instead.
   if (profile?.approval_status === "approved") redirect("/dashboard");
+  if (profile?.approval_status === "rejected") redirect("/application");
+  const resubmitted = (await searchParams).resubmitted === "1";
 
   return (
     <div className="flex min-h-svh flex-col items-center justify-center px-5 text-center">
@@ -21,13 +27,11 @@ export default async function PendingApprovalPage() {
           <Clock className="size-7" />
         </div>
         <h1 className="mt-6 font-display text-3xl font-semibold text-foreground sm:text-4xl">
-          {profile?.approval_status === "rejected"
-            ? "Account not approved"
-            : "Awaiting approval"}
+          {resubmitted ? "Application resubmitted" : "Awaiting approval"}
         </h1>
         <p className="mt-3 max-w-md text-muted">
-          {profile?.approval_status === "rejected"
-            ? "Your account could not be approved. Please contact the organizers if you think this is a mistake."
+          {resubmitted
+            ? "Thanks — your corrected details and new ID card are back with an organizer for review. You'll get an email the moment you're approved, with your participant ID."
             : "Your account and ID card are with an organizer for review. You'll get an email the moment you're approved — then you can sign in and register."}
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">

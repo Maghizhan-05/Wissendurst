@@ -5,6 +5,7 @@ import { DEFAULT_LANDING, mergeLanding, type LandingContent } from "@/lib/conten
 import { DEFAULT_ABOUT, mergeAbout, type AboutContent } from "@/lib/content/about";
 import { EMPTY_APPEARANCE, mergeAppearance, type Appearance } from "@/lib/content/appearance";
 import { EMPTY_SOCIAL, mergeSocial, type SocialSettings } from "@/lib/content/social";
+import { DEFAULT_SCHEDULE, mergeSchedule, type ScheduleContent } from "@/lib/content/schedule";
 
 /**
  * Reads the editable landing content, merged over built-in defaults. Resilient:
@@ -84,5 +85,26 @@ export const getSocialSettings = cache(async (): Promise<SocialSettings> => {
     return mergeSocial((data as { social?: unknown } | null)?.social ?? null);
   } catch {
     return EMPTY_SOCIAL;
+  }
+});
+
+/** Schedule page wording (0031) merged over defaults; defaults on any error. */
+export const getScheduleContent = cache(async (): Promise<ScheduleContent> => {
+  try {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    if (!url || !key) return DEFAULT_SCHEDULE;
+    const supabase = createAnonClient(url.trim(), key.trim(), {
+      auth: { persistSession: false },
+    });
+    const { data, error } = await supabase
+      .from("site_settings")
+      .select("schedule")
+      .eq("id", 1)
+      .maybeSingle();
+    if (error) return DEFAULT_SCHEDULE;
+    return mergeSchedule((data as { schedule?: unknown } | null)?.schedule ?? null);
+  } catch {
+    return DEFAULT_SCHEDULE;
   }
 });

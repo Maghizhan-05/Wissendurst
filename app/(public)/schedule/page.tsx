@@ -9,15 +9,16 @@ import { getEvents } from "@/lib/data/events";
 import { CategoryName } from "@/components/events/categories-context";
 import { formatEventDate, formatTime } from "@/lib/utils";
 import { compareScheduleEvents } from "@/lib/schedule";
+import { getScheduleContent } from "@/lib/data/settings";
 import type { EventRow } from "@/types/database";
 
-export const metadata: Metadata = {
-  title: "Schedule",
-  description: "The full Wissendurst'27 programme, day by day.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const copy = await getScheduleContent();
+  return { title: copy.metaTitle, description: copy.metaDescription };
+}
 
 export default async function SchedulePage() {
-  const events = await getEvents();
+  const [events, copy] = await Promise.all([getEvents(), getScheduleContent()]);
 
   const byDate = new Map<string, EventRow[]>();
   for (const e of events) {
@@ -30,16 +31,16 @@ export default async function SchedulePage() {
     <div className="py-14 md:py-20">
       <Container>
         <SectionHeading
-          eyebrow="Schedule"
-          title="Three days, mapped out."
-          description="Times are indicative and may shift slightly. Open any event to register."
+          eyebrow={copy.eyebrow}
+          title={copy.heading}
+          description={copy.description}
         />
 
         {days.length === 0 ? (
           <div className="mt-12">
             <EmptyState
-              title="Schedule coming soon"
-              description="Events will appear here as they're announced."
+              title={copy.emptyTitle}
+              description={copy.emptyDescription}
             />
           </div>
         ) : (
@@ -48,7 +49,7 @@ export default async function SchedulePage() {
               <section key={date}>
                 <div className="sticky top-16 z-10 -mx-2 bg-background/80 px-2 py-2 backdrop-blur">
                   <h2 className="font-display text-2xl font-semibold text-foreground">
-                    {date === "TBA" ? "To be announced" : formatEventDate(date)}
+                    {date === "TBA" ? copy.tbaHeading : formatEventDate(date)}
                   </h2>
                 </div>
                 <ul className="mt-4 divide-y divide-border overflow-hidden rounded-2xl border border-border bg-surface">
@@ -72,7 +73,7 @@ export default async function SchedulePage() {
                               <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
                                 <span className="inline-flex items-center gap-1">
                                   <Clock className="size-3.5" />
-                                  {e.end_time ? `until ${formatTime(e.end_time)}` : "TBA"}
+                                  {e.end_time ? `${copy.endPrefix} ${formatTime(e.end_time)}` : copy.missingTime}
                                 </span>
                                 {e.venue && (
                                   <span className="inline-flex items-center gap-1">

@@ -4,12 +4,6 @@ import { Eye } from "lucide-react";
 import { PaymentBadge, RegistrationBadge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/misc";
 import { getRegistrationsAdmin, getAllEventsAdmin } from "@/lib/data/admin";
-import {
-  PAYMENT_STATUSES,
-  PAYMENT_STATUS_LABELS,
-  REGISTRATION_STATUSES,
-  REGISTRATION_STATUS_LABELS,
-} from "@/lib/constants";
 import { formatEventDate } from "@/lib/utils";
 import { requireScope } from "@/lib/auth";
 import { teamDisplay } from "@/lib/team-label";
@@ -23,9 +17,6 @@ export default async function AdminRegistrationsPage({
   const sp = await searchParams;
   const filters = {
     event: typeof sp.event === "string" ? sp.event : undefined,
-    payment: typeof sp.payment === "string" ? sp.payment : undefined,
-    registration: typeof sp.registration === "string" ? sp.registration : undefined,
-    duplicatesOnly: sp.duplicates === "1",
   };
 
   const [rows, events] = await Promise.all([
@@ -42,7 +33,14 @@ export default async function AdminRegistrationsPage({
         <h1 className="font-display text-2xl font-semibold text-foreground">
           Registrations
         </h1>
-        <p className="mt-1 text-sm text-muted">{rows.length} shown</p>
+        <p className="mt-1 text-sm text-muted">
+          {rows.length} confirmed registration{rows.length === 1 ? "" : "s"} — free events, or payment
+          verified. Payments waiting for review are in{" "}
+          <Link href="/admin/payments" className="font-medium text-brand hover:underline">
+            Payments
+          </Link>
+          .
+        </p>
       </div>
 
       <form className="flex flex-wrap items-end gap-3" method="get">
@@ -56,38 +54,6 @@ export default async function AdminRegistrationsPage({
               </option>
             ))}
           </select>
-        </label>
-        <label className="flex flex-col gap-1 text-xs text-muted">
-          Payment
-          <select name="payment" defaultValue={filters.payment ?? ""} className={selectCls}>
-            <option value="">Any</option>
-            {PAYMENT_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {PAYMENT_STATUS_LABELS[s]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-xs text-muted">
-          Registration
-          <select name="registration" defaultValue={filters.registration ?? ""} className={selectCls}>
-            <option value="">Any</option>
-            {REGISTRATION_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {REGISTRATION_STATUS_LABELS[s]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex items-center gap-2 pb-2 text-sm text-foreground">
-          <input
-            type="checkbox"
-            name="duplicates"
-            value="1"
-            defaultChecked={filters.duplicatesOnly}
-            className="size-4 accent-[var(--brand)]"
-          />
-          Duplicates only
         </label>
         <button
           type="submit"

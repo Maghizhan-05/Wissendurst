@@ -29,6 +29,8 @@ const SUBMIT_ERRORS: Record<string, string> = {
     "Your seat hold expired. Register for the event again to renew it, then submit your payment.",
   EVENT_FULL:
     "This event filled up while your payment was rejected, so it can't be resubmitted.",
+  UTR_PREVIOUSLY_REJECTED:
+    "That transaction ID was already rejected for this registration. Submit the screenshot and UTR of a different, valid payment.",
 };
 
 function mapSubmitError(message: string | undefined): string {

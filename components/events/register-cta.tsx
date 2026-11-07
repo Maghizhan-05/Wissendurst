@@ -104,11 +104,16 @@ function RegisterCtaBody({
         <div className="flex flex-col gap-3">
           <div className="inline-flex items-center gap-2.5 rounded-xl border border-border bg-surface px-4 py-3 text-sm text-foreground">
             <Users className="size-4 text-brand" />
-            You&rsquo;re on a team for this event — your team head completes the
-            payment.
+            {existing.registration_status === "confirmed"
+              ? "You're on a confirmed team for this event."
+              : "You're on a team for this event — your team head completes the payment. It appears in My events once the payment is verified."}
           </div>
-          <ButtonLink href="/dashboard/registrations" size="lg" variant="outline">
-            View my events
+          <ButtonLink
+            href={existing.registration_status === "confirmed" ? "/dashboard/registrations" : "/events"}
+            size="lg"
+            variant="outline"
+          >
+            {existing.registration_status === "confirmed" ? "View my events" : "Browse more"}
           </ButtonLink>
         </div>
       );
@@ -134,14 +139,20 @@ function RegisterCtaBody({
         <div className="flex flex-col gap-3 sm:flex-row">
           <ButtonLink
             href={
-              needsPayment
-                ? `/dashboard/payment/${existing.id}`
-                : "/dashboard/registrations"
+              existing.registration_status === "confirmed"
+                ? "/dashboard/registrations"
+                : `/dashboard/payment/${existing.id}`
             }
             size="lg"
             withArrow
           >
-            {needsPayment ? "Complete Payment" : "View Registration"}
+            {existing.registration_status === "confirmed"
+              ? "View Registration"
+              : existing.payment_status === "rejected"
+                ? "Submit new payment evidence"
+                : needsPayment
+                  ? "Complete Payment"
+                  : "View payment status"}
           </ButtonLink>
           <ButtonLink href="/events" size="lg" variant="outline">
             Browse more

@@ -12,6 +12,7 @@ drop function if exists public.set_my_profile_photo(text);  -- 0026 changed its 
 \ir ../migrations/0024_staff_participant_ids.sql
 \ir ../migrations/0026_review_hardening.sql
 \ir ../migrations/0030_team_pricing_roster_social.sql
+\ir ../migrations/0031_signup_resubmission_payment_retry.sql
 update public.payment_destination_settings set default_event_upi_id = 'site.default@okbank';
 
 create or replace function pg_temp.expect_error(p_sql text, p_needle text) returns text

@@ -31,7 +31,7 @@ export default async function RegistrationsPage() {
           <EmptyState
             icon={<Ticket className="size-8" />}
             title="No registrations yet"
-            description="Register for events and they'll appear here as flip cards."
+            description="Events appear here once your spot is confirmed — free events straight away, paid events after your payment is verified."
             action={
               <ButtonLink href="/events" withArrow>
                 Explore Events

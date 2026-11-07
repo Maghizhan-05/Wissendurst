@@ -20,7 +20,9 @@ export default async function PublicLayout({
   ]);
   const navUser = profile
     ? {
-        participantId: profile.participant_id ?? "",
+        participantId:
+          profile.participant_id ??
+          (profile.approval_status === "rejected" ? "My application" : "Dashboard"),
         isAdmin: profile.role === "admin",
         showGeneralRegistration:
           isGeneralRegistrationOpen(grSettings) &&

@@ -90,10 +90,21 @@ export default async function ApprovalReviewPage({
 
           <div className="rounded-2xl border border-border bg-surface p-5">
             <p className="mb-3 text-sm font-medium text-foreground">Decision</p>
-            <ApprovalActions userId={user.id} />
-            <p className="mt-3 text-xs text-muted">
-              Approving emails the participant that they can now sign in.
-            </p>
+            {user.approval_status === "pending" ? (
+              <>
+                <ApprovalActions userId={user.id} />
+                <p className="mt-3 text-xs text-muted">
+                  Approving issues a participant ID and emails them that they can sign in. Rejecting emails
+                  them a link to correct and resubmit the same application.
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-muted">
+                {user.approval_status === "approved"
+                  ? "Approved. Approval can't be undone from here."
+                  : "Rejected — waiting for the applicant to correct and resubmit. It returns to Approvals when they do."}
+              </p>
+            )}
           </div>
         </div>
       </div>

@@ -71,7 +71,9 @@ export function approvalRejectedEmail(name: string) {
     subject: "Update on your Wissendurst'27 sign-up",
     html: shell(
       `Hi ${name || "there"}`,
-      `<p style="line-height:1.6;">We're sorry — your account could not be approved at this time. If you think this is a mistake, please reply to this email or contact the organizers.</p>`,
+      `<p style="line-height:1.6;">We're sorry — your sign-up couldn't be approved as submitted. This is often an unreadable or mismatched ID card, or details that don't match it.</p>
+       <p style="line-height:1.6;color:#627775;">Sign in with the same email and password to correct your details, upload a new photo of your college ID card and resubmit. An organizer will review it again.</p>`,
+      { label: "Correct and resubmit", href: siteUrl("/login?next=/application") },
     ),
   };
 }
@@ -129,6 +131,7 @@ export function paymentUnderReviewEmail(
   event: EventRow,
   amountPaise: number,
   transactionId: string | null,
+  registrationId: string,
 ) {
   return {
     subject: `Payment received — under review (${event.title})`,
@@ -140,7 +143,25 @@ export function paymentUnderReviewEmail(
         transactionId ? ` (transaction ID ${esc(transactionId)})` : ""
       }.</p>
        <p style="line-height:1.6;color:#627775;">An organizer will verify it shortly. You'll get another email once it's confirmed.</p>`,
-      { label: "View status", href: siteUrl("/dashboard/registrations") },
+      { label: "View status", href: siteUrl(`/dashboard/payment/${registrationId}`) },
+    ),
+  };
+}
+
+export function paymentRejectedEmail(
+  name: string,
+  event: EventRow,
+  registrationId: string,
+  note: string | null,
+) {
+  return {
+    subject: `Payment not accepted — ${event.title}`,
+    html: shell(
+      "Your payment couldn't be verified",
+      `<p style="line-height:1.6;">Hi ${esc(name || "there")}, an organizer couldn't verify your payment for <strong>${esc(event.title)}</strong>.</p>
+       ${note ? `<p style="line-height:1.6;background:#fff4f2;border:1px solid #f3c9c2;border-radius:10px;padding:10px 14px;">Reason: ${esc(note)}</p>` : ""}
+       <p style="line-height:1.6;color:#627775;">You can submit new payment evidence — a clear screenshot and the UTR of a valid payment — from the same payment page. Your registration is confirmed only after an organizer verifies it.</p>`,
+      { label: "Submit new payment evidence", href: siteUrl(`/dashboard/payment/${registrationId}`) },
     ),
   };
 }

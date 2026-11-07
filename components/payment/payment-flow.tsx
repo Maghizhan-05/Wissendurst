@@ -122,12 +122,12 @@ export function PaymentFlow({
         tone="info"
         icon={<Loader2 className="size-6" />}
         title="Submitted for review"
-        body="An organizer will verify your payment shortly. You'll see the status update on your dashboard."
-        cta={
+        body={
           general
-            ? { label: "Refresh status", onClick: () => router.refresh() }
-            : { label: "Go to my events", onClick: () => router.push(backHref) }
+            ? "An organizer will verify your payment shortly. You'll see the status update here."
+            : "An organizer will verify your payment shortly. We'll email you, and the event appears in My events once it's verified."
         }
+        cta={{ label: "Refresh status", onClick: () => router.refresh() }}
       />
     );
   }

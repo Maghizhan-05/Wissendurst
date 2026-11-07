@@ -272,9 +272,6 @@ export async function getEventByIdAdmin(id: string): Promise<EventRow | null> {
 
 export interface RegistrationFilters {
   event?: string;
-  payment?: string;
-  registration?: string;
-  duplicatesOnly?: boolean;
 }
 
 export async function getRegistrationsAdmin(
@@ -286,13 +283,12 @@ export async function getRegistrationsAdmin(
     .select(
       "*, event:events!registrations_event_id_fkey(id,slug,title,registration_fee), profile:profiles!profile_id(id,participant_id,full_name,email,phone), team:teams!team_id(name,member_count)",
     )
+    // Confirmed registrations only (free, or payment verified). Intents,
+    // submissions and rejections live in the Payments queue.
+    .eq("registration_status", "confirmed")
     .order("registered_at", { ascending: false });
 
   if (filters.event) query = query.eq("event_id", filters.event);
-  if (filters.payment) query = query.eq("payment_status", filters.payment);
-  if (filters.registration)
-    query = query.eq("registration_status", filters.registration);
-  if (filters.duplicatesOnly) query = query.eq("payment_status", "duplicate");
 
   const { data, error } = await query;
   if (error) throw queryError("getRegistrationsAdmin", error);
@@ -392,6 +388,7 @@ export async function getUserWithRegistrations(id: string): Promise<{
     .from("registrations")
     .select("*, event:events!registrations_event_id_fkey(title,slug)")
     .eq("profile_id", id)
+    .eq("registration_status", "confirmed")
     .order("registered_at", { ascending: false });
   if (regError) throw queryError("user registrations", regError);
 

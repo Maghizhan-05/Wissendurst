@@ -14,6 +14,7 @@ import {
 import {
   forgotSchema,
   loginSchema,
+  profileSchema,
   resetSchema,
   signupSchema,
 } from "@/lib/validation/auth";
@@ -61,14 +62,15 @@ export async function signIn(_prev: AuthState, formData: FormData): Promise<Auth
     .eq("id", signInData.user.id)
     .maybeSingle();
   const status = (profile as { approval_status?: string } | null)?.approval_status;
+  if (status === "rejected") {
+    // A rejected applicant keeps a session for one thing only: correcting and
+    // resubmitting the same application (/application; every other signed-in
+    // area redirects there).
+    revalidatePath("/", "layout");
+    redirect("/application");
+  }
   if (status !== "approved") {
     await supabase.auth.signOut();
-    if (status === "rejected") {
-      return {
-        ok: false,
-        error: "Your account was not approved. Please contact the organizers.",
-      };
-    }
     return {
       ok: false,
       error:
@@ -207,4 +209,83 @@ export async function updatePassword(
   if (error) return { ok: false, error: error.message };
   revalidatePath("/", "layout");
   redirect("/dashboard?reset=1");
+}
+
+/**
+ * A rejected applicant corrects their details and uploads a replacement
+ * college ID card on the SAME account (0031 resubmit_my_application). The
+ * application returns to pending; no participant ID is issued until approval.
+ */
+export async function resubmitApplication(
+  _prev: AuthState,
+  formData: FormData,
+): Promise<AuthState> {
+  const parsed = profileSchema.safeParse({
+    full_name: formData.get("full_name"),
+    phone: formData.get("phone"),
+    college: formData.get("college"),
+    course: formData.get("course"),
+    year: formData.get("year"),
+  });
+  if (!parsed.success) {
+    return { ok: false, error: firstError(parsed.error.flatten().fieldErrors) };
+  }
+  const idCard = formData.get("id_card");
+  if (!(idCard instanceof File) || idCard.size === 0) {
+    return { ok: false, error: "Upload a new photo of your college ID card." };
+  }
+  if (!ID_CARD_ACCEPTED_TYPES.includes(idCard.type as never)) {
+    return { ok: false, error: "ID card must be a PNG, JPG or WebP image." };
+  }
+  if (idCard.size > ID_CARD_MAX_BYTES) {
+    return { ok: false, error: "ID card image is too large (max 5 MB)." };
+  }
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login?next=/application");
+
+  // Upload to the caller's own folder (private bucket, service role), then
+  // the RPC checks the object exists and belongs to this account.
+  const admin = createAdminClient();
+  const ext = ID_CARD_EXT[idCard.type] ?? "png";
+  const path = `${user.id}/${Date.now()}.${ext}`;
+  const { error: upErr } = await admin.storage
+    .from(BUCKETS.idCards)
+    .upload(path, Buffer.from(await idCard.arrayBuffer()), { contentType: idCard.type, upsert: false });
+  if (upErr) {
+    console.error("resubmission id card upload failed:", upErr);
+    return { ok: false, error: "Couldn't upload your ID card. Please try again." };
+  }
+
+  const d = parsed.data;
+  const { error } = await supabase.rpc("resubmit_my_application", {
+    p_full_name: d.full_name,
+    p_phone: d.phone,
+    p_college: d.college,
+    p_course: d.course,
+    p_year: d.year,
+    p_id_card_path: path,
+  });
+  if (error) {
+    console.error("resubmit_my_application failed:", error);
+    await admin.storage.from(BUCKETS.idCards).remove([path]);
+    const m = error.message ?? "";
+    if (m.includes("APPLICATION_NOT_REJECTED"))
+      return { ok: false, error: "Your application isn't in a rejected state, so there's nothing to resubmit." };
+    if (m.includes("INVALID_PROFILE")) return { ok: false, error: "Please check your details and try again." };
+    if (m.includes("INVALID_ID_CARD")) return { ok: false, error: "Upload a new photo of your college ID card." };
+    return { ok: false, error: "Couldn't resubmit your application. Please try again." };
+  }
+
+  try {
+    await notifySignupPending(user.id);
+  } catch (e) {
+    console.error("resubmission email failed:", e);
+  }
+  revalidatePath("/", "layout");
+  revalidatePath("/admin/approvals");
+  redirect("/pending-approval?resubmitted=1");
 }

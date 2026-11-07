@@ -120,11 +120,11 @@ export default async function AdminUserPage({
 
       <div>
         <h2 className="font-display text-lg font-semibold text-foreground">
-          Registrations ({registrations.length})
+          Confirmed registrations ({registrations.length})
         </h2>
         {registrations.length === 0 ? (
           <div className="mt-4">
-            <EmptyState title="No registrations" description="This user hasn't registered for any events." />
+            <EmptyState title="No registrations" description="This user has no confirmed registrations (free, or payment verified)." />
           </div>
         ) : (
           <div className="mt-4 overflow-x-auto rounded-2xl border border-border">

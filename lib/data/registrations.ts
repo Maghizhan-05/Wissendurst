@@ -42,7 +42,7 @@ export type RegistrationWithEventAndState = RegistrationWithEvent & {
   state: RegistrationState | null;
 };
 
-/** Current user's registrations with their event and intent state. */
+/** Current user's CONFIRMED registrations with their event and intent state. */
 export async function getMyRegistrations(): Promise<
   RegistrationWithEventAndState[]
 > {
@@ -51,6 +51,10 @@ export async function getMyRegistrations(): Promise<
     supabase
       .from("registrations")
       .select("*, event:events!registrations_event_id_fkey(*), team:teams!team_id(name,member_count)")
+      // Only completed registrations (free, or payment verified). Payment
+      // intents, submissions under review and rejected payments stay on the
+      // event page / payment route, never in the participant's history.
+      .eq("registration_status", "confirmed")
       .order("registered_at", { ascending: false }),
     getMyRegistrationStates(),
   ]);
@@ -104,4 +108,20 @@ export async function getMyRegistrationForEvent(
   if (!data) return null;
   const reg = data as RegistrationRow;
   return { ...reg, state: states.get(reg.id) ?? null };
+}
+
+export type PaymentRejectionView = { note: string | null; transaction_id: string | null; created_at: string };
+
+/** Most recent rejection of one of the caller's payments (0031; RLS: owner). */
+export async function getLatestPaymentRejection(registrationId: string): Promise<PaymentRejectionView | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("payment_rejections")
+    .select("note, transaction_id, created_at")
+    .eq("registration_id", registrationId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw queryError("payment_rejections", error);
+  return (data as PaymentRejectionView) ?? null;
 }

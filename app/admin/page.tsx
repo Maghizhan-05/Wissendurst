@@ -24,7 +24,7 @@ export default async function AdminOverviewPage() {
 
       {stats.duplicates > 0 && (
         <Link
-          href="/admin/registrations?duplicates=1"
+          href="/admin/payments"
           className="flex items-center justify-between gap-3 rounded-xl border border-alert/30 bg-alert/10 p-4 transition-colors hover:bg-alert/15"
         >
           <span className="flex items-center gap-2 text-sm font-medium text-alert">

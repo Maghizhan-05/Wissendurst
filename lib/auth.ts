@@ -55,6 +55,7 @@ export async function requireUser() {
 export async function requireProfile(): Promise<ProfileRow> {
   const profile = await getProfile();
   if (!profile) redirect("/login");
+  if (profile.approval_status === "rejected") redirect("/application");
   if (profile.approval_status !== "approved") redirect("/pending-approval");
   return profile;
 }
@@ -63,6 +64,7 @@ export async function requireProfile(): Promise<ProfileRow> {
 export async function requireAdmin(): Promise<ProfileRow> {
   const profile = await getProfile();
   if (!profile) redirect("/login?next=/admin");
+  if (profile.approval_status === "rejected") redirect("/application");
   if (profile.approval_status !== "approved") redirect("/pending-approval");
   if (profile.role !== "admin") redirect("/");
   return profile;

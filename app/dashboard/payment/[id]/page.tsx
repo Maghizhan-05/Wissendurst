@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Clock, Info } from "lucide-react";
+import { ArrowLeft, Clock, Info, TriangleAlert } from "lucide-react";
 import { PaymentFlow } from "@/components/payment/payment-flow";
 import {
   PayPanelGuard,
@@ -13,7 +13,7 @@ import { getTeamForRegistration } from "@/lib/data/teams";
 import { getTeamSizePrices } from "@/lib/data/events";
 import { PaymentBadge } from "@/components/ui/badge";
 import { requireProfile } from "@/lib/auth";
-import { getMyRegistration } from "@/lib/data/registrations";
+import { getLatestPaymentRejection, getMyRegistration } from "@/lib/data/registrations";
 import { resolveEventUpiId } from "@/lib/data/events";
 import { upiQrDataUrl } from "@/lib/payment";
 import { getDefaultEventUpiId } from "@/lib/data/payment-settings";
@@ -111,6 +111,9 @@ export default async function PaymentPage({
     isTeamHead &&
     !teamEditable &&
     (hasEvidence || registration.payment_status !== "unpaid");
+  // Rejected payment (0031): the same registration takes new evidence.
+  const rejected = registration.payment_status === "rejected" && !block;
+  const rejection = rejected ? await getLatestPaymentRejection(registration.id) : null;
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -188,6 +191,37 @@ export default async function PaymentPage({
                 "Your seat stays held while the organizers review your payment."
               )}
             </p>
+          )}
+
+          {rejected && (
+            <div
+              role="status"
+              className="mt-6 flex items-start gap-3 rounded-2xl border border-alert/30 bg-alert/10 p-5"
+            >
+              <TriangleAlert className="mt-0.5 size-5 shrink-0 text-alert" aria-hidden />
+              <div className="min-w-0 text-sm">
+                <p className="font-semibold text-foreground">Payment rejected — submit new payment evidence</p>
+                {rejection?.note && (
+                  <p className="mt-1 break-words text-foreground">
+                    <span className="text-muted">Organizer&rsquo;s note:</span> {rejection.note}
+                  </p>
+                )}
+                <p className="mt-1 text-muted">
+                  Upload a clear screenshot and the transaction (UTR) number of a valid payment of{" "}
+                  {formatINR(registration.amount)}.
+                  {rejection?.transaction_id && (
+                    <>
+                      {" "}
+                      The rejected UTR <span className="font-mono">{rejection.transaction_id}</span> can&rsquo;t be
+                      used again.
+                    </>
+                  )}{" "}
+                  {registration.team_id
+                    ? "This applies to your whole team; teammates appear as registered once it's verified."
+                    : "Your registration is confirmed once an organizer verifies it."}
+                </p>
+              </div>
+            </div>
           )}
 
           {team && (
