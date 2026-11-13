@@ -4,8 +4,9 @@ import { Toaster } from "sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { SITE } from "@/lib/constants";
 import { siteUrl } from "@/lib/utils";
-import { getAppearance } from "@/lib/data/settings";
+import { getAppearance, getSiteBackgrounds } from "@/lib/data/settings";
 import { appearanceCss } from "@/lib/content/appearance";
+import { backgroundsCss } from "@/lib/content/backgrounds";
 import { getEventCategories } from "@/lib/data/event-categories";
 import { CategoriesProvider } from "@/components/events/categories-context";
 import "./globals.css";
@@ -52,8 +53,14 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   // Admin colour overrides, validated to #rrggbb tokens only, emitted in <head>
   // so the first paint already uses them (no theme flash).
-  const [appearance, categories] = await Promise.all([getAppearance(), getEventCategories()]);
-  const themeCss = appearanceCss(appearance);
+  const [appearance, backgrounds, categories] = await Promise.all([
+    getAppearance(),
+    getSiteBackgrounds(),
+    getEventCategories(),
+  ]);
+  // Background images (0033) are validated paths on the project's own storage.
+  const themeCss =
+    appearanceCss(appearance) + backgroundsCss(backgrounds, process.env.NEXT_PUBLIC_SUPABASE_URL);
   return (
     <html
       lang="en"
@@ -66,6 +73,8 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         </head>
       )}
       <body className="min-h-full flex flex-col antialiased">
+        {/* Admin background image layer; hidden unless an image is set. */}
+        <div aria-hidden className="site-bg pointer-events-none fixed inset-0 -z-10 hidden" />
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"

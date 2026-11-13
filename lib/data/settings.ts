@@ -5,6 +5,7 @@ import { DEFAULT_LANDING, mergeLanding, type LandingContent } from "@/lib/conten
 import { DEFAULT_ABOUT, mergeAbout, type AboutContent } from "@/lib/content/about";
 import { EMPTY_APPEARANCE, mergeAppearance, type Appearance } from "@/lib/content/appearance";
 import { EMPTY_SOCIAL, mergeSocial, type SocialSettings } from "@/lib/content/social";
+import { DEFAULT_BACKGROUNDS, mergeBackgrounds, type SiteBackgrounds } from "@/lib/content/backgrounds";
 import { DEFAULT_SCHEDULE, mergeSchedule, type ScheduleContent } from "@/lib/content/schedule";
 
 /**
@@ -64,6 +65,27 @@ export const getAppearance = cache(async (): Promise<Appearance> => {
     return mergeAppearance((data as { appearance?: unknown } | null)?.appearance ?? null);
   } catch {
     return EMPTY_APPEARANCE;
+  }
+});
+
+/** Site background images (0033); defaults (no image) on any failure. */
+export const getSiteBackgrounds = cache(async (): Promise<SiteBackgrounds> => {
+  try {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+    if (!url || !key) return DEFAULT_BACKGROUNDS;
+    const supabase = createAnonClient(url.trim(), key.trim(), {
+      auth: { persistSession: false },
+    });
+    const { data, error } = await supabase
+      .from("site_settings")
+      .select("backgrounds")
+      .eq("id", 1)
+      .maybeSingle();
+    if (error) return DEFAULT_BACKGROUNDS;
+    return mergeBackgrounds((data as { backgrounds?: unknown } | null)?.backgrounds ?? null);
+  } catch {
+    return DEFAULT_BACKGROUNDS;
   }
 });
 

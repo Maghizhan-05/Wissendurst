@@ -9,6 +9,14 @@ import { aboutSchema } from "@/lib/content/about";
 import { appearanceSchema } from "@/lib/content/appearance";
 import { socialSchema } from "@/lib/content/social";
 import { scheduleSchema } from "@/lib/content/schedule";
+import { randomUUID } from "node:crypto";
+import { createAdminClient } from "@/lib/supabase/admin";
+import {
+  BACKGROUND_MAX_BYTES,
+  BACKGROUND_TYPES,
+  backgroundsSchema,
+  sniffImageType,
+} from "@/lib/content/backgrounds";
 
 export type ContentState =
   | { ok: false; error: string }
@@ -34,7 +42,7 @@ function firstIssue(error: z.ZodError): string {
 }
 
 async function saveColumn(
-  column: "content" | "about" | "appearance" | "social" | "schedule",
+  column: "content" | "about" | "appearance" | "social" | "schedule" | "backgrounds",
   value: unknown,
 ): Promise<string | null> {
   const supabase = await createClient();
@@ -103,6 +111,79 @@ export async function updateAppearance(
   // Colours apply to every page (public, participant and admin).
   revalidatePath("/", "layout");
   return { ok: true, message: "Appearance updated." };
+}
+
+export type BackgroundUploadResult = { ok: true; path: string } | { ok: false; error: string };
+
+/**
+ * Uploads a background image (0033) to the public `site-images` bucket. Type
+ * is checked by the declared MIME type AND the file's leading bytes; the
+ * bucket itself also enforces 5 MB and PNG/JPEG/WebP. Nothing is applied to
+ * the site until the appearance form is saved.
+ */
+export async function uploadBackgroundImage(formData: FormData): Promise<BackgroundUploadResult> {
+  await requireScope("content");
+  const mode = String(formData.get("mode") ?? "");
+  const file = formData.get("file");
+  if (mode !== "light" && mode !== "dark") return { ok: false, error: "Choose light or dark." };
+  if (!(file instanceof File) || file.size === 0) return { ok: false, error: "Choose an image to upload." };
+  if (!BACKGROUND_TYPES.includes(file.type as never)) return { ok: false, error: "Upload a PNG, JPG or WebP image." };
+  if (file.size > BACKGROUND_MAX_BYTES) return { ok: false, error: "Image is too large (max 5 MB)." };
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const sniffed = sniffImageType(bytes);
+  if (!sniffed || sniffed !== file.type) return { ok: false, error: "That file isn't a valid PNG, JPG or WebP image." };
+
+  const ext = sniffed === "image/png" ? "png" : sniffed === "image/jpeg" ? "jpg" : "webp";
+  const path = `backgrounds/${mode}-${randomUUID()}.${ext}`;
+  const { error } = await createAdminClient()
+    .storage.from("site-images")
+    .upload(path, bytes, { contentType: sniffed, cacheControl: "31536000", upsert: false });
+  if (error) {
+    console.error("background upload failed:", error);
+    return { ok: false, error: "Could not upload the image. Please try again." };
+  }
+  return { ok: true, path };
+}
+
+export async function updateBackgrounds(
+  _prev: ContentState,
+  formData: FormData,
+): Promise<ContentState> {
+  await requireScope("content");
+  const raw = readJson(formData, "backgrounds");
+  if (raw === undefined) return { ok: false, error: "Could not read the form data." };
+  const result = backgroundsSchema.safeParse(raw);
+  if (!result.success) return { ok: false, error: firstIssue(result.error) };
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("site_settings")
+    .upsert({ id: 1, backgrounds: result.data }, { onConflict: "id" });
+  if (error) {
+    console.error("site_settings backgrounds save failed:", error);
+    if (error.message?.includes("BACKGROUND_IMAGE_NOT_FOUND")) {
+      return { ok: false, error: "An image is missing — upload it again." };
+    }
+    return { ok: false, error: "Could not save changes." };
+  }
+
+  // Remove images that are no longer used (older than an hour, so another
+  // admin's just-uploaded, not-yet-saved image is never removed).
+  try {
+    const admin = createAdminClient();
+    const { data: files } = await admin.storage.from("site-images").list("backgrounds", { limit: 1000 });
+    const keep = new Set([result.data.light, result.data.dark].filter(Boolean));
+    const cutoff = Date.now() - 60 * 60 * 1000;
+    const stale = (files ?? [])
+      .filter((f) => f.id && !keep.has(`backgrounds/${f.name}`) && Date.parse(f.created_at ?? "") < cutoff)
+      .map((f) => `backgrounds/${f.name}`);
+    if (stale.length) await admin.storage.from("site-images").remove(stale);
+  } catch (e) {
+    console.error("background cleanup failed:", e);
+  }
+
+  revalidatePath("/", "layout");
+  return { ok: true, message: "Background updated." };
 }
 
 export async function updateSocialLinks(
