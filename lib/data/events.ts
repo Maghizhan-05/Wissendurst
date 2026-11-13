@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { queryError } from "@/lib/supabase/query-error";
+import { adjustedPrice, type PriceWindowKind } from "@/lib/events/price-windows";
 import type { EventRow } from "@/types/database";
 
 /**
@@ -151,6 +152,27 @@ export async function getMyOfferPrices(
   return result;
 }
 
+export type ActivePriceWindow = { kind: PriceWindowKind; adjustment: number; ends_at: string | null };
+
+/**
+ * Early bird / late bird / on spot adjustment in force now, per event (0032;
+ * same database rule the registration RPCs freeze). Empty on failure.
+ */
+export async function getActivePriceWindows(eventIds: string[]): Promise<Record<string, ActivePriceWindow>> {
+  const out: Record<string, ActivePriceWindow> = {};
+  if (eventIds.length === 0) return out;
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("active_price_windows", { p_event_ids: eventIds });
+  if (error) {
+    console.error("active_price_windows failed:", error);
+    return out;
+  }
+  for (const r of (data ?? []) as (ActivePriceWindow & { event_id: string })[]) {
+    out[r.event_id] = { kind: r.kind, adjustment: r.adjustment, ends_at: r.ends_at };
+  }
+  return out;
+}
+
 export interface TeamSizePrice {
   size: number;
   list: number; // paise — this size's own price
@@ -181,12 +203,11 @@ export async function getTeamSizePrices(eventId: string): Promise<TeamSizePrice[
     .eq("event_id", eventId)
     .order("team_size", { ascending: true });
   if (error) throw queryError("event_team_price_tiers", error);
-  return ((data ?? []) as { team_size: number; fee: number }[]).map((r) => ({
-    size: r.team_size,
-    list: r.fee,
-    discount: 0,
-    amount: r.fee,
-  }));
+  const adj = (await getActivePriceWindows([eventId]))[eventId]?.adjustment ?? 0;
+  return ((data ?? []) as { team_size: number; fee: number }[]).map((r) => {
+    const list = adjustedPrice(r.fee, adj, r.team_size);
+    return { size: r.team_size, list, discount: 0, amount: list };
+  });
 }
 
 /** Solo-price discounts (paise) keyed by event id — for event cards. */

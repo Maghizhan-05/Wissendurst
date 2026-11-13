@@ -120,6 +120,7 @@ export function RegistrationFlipCard({
             {registration.team_id && (
               <Row label="Team">
                 <span className="min-w-0 break-words text-right text-foreground">
+                  {registration.team?.code ? `${registration.team.code} · ` : ""}
                   {teamDisplay(registration.team) ? `${teamDisplay(registration.team)} · ` : ""}
                   {registration.is_team_head ? "Team head" : "Team member"}
                 </span>

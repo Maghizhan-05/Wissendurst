@@ -101,6 +101,8 @@ export interface TeamRow {
   head_profile_id: string;
   /** Team name (1–60 chars); null for solo registrations and pre-0030 teams. */
   name: string | null;
+  /** Team registration code W27/T/0001 (0032); set once the team has 2+ members. */
+  code: string | null;
   created_at: string;
 }
 
@@ -229,7 +231,7 @@ export interface PaymentEventRow {
 
 /** Joined shapes returned by queries. */
 /** Embedded `team:teams!team_id(name,member_count)`; null when not on a team. */
-export type EmbeddedTeam = { name: string | null; member_count: number } | null;
+export type EmbeddedTeam = { name: string | null; member_count: number; code: string | null } | null;
 
 export interface RegistrationWithEvent extends RegistrationRow {
   event: EventRow;

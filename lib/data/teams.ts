@@ -14,7 +14,7 @@ export type TeamMemberView = {
   is_head: boolean;
 };
 
-export type TeamView = { id: string; name: string | null; members: TeamMemberView[] };
+export type TeamView = { id: string; name: string | null; code: string | null; members: TeamMemberView[] };
 
 /**
  * The team of a registration the caller has ALREADY read through RLS (their
@@ -27,7 +27,7 @@ export async function getTeamForRegistration(
   if (!reg.team_id) return null;
   const admin = createAdminClient();
   const [{ data: team, error: teamErr }, { data: rows, error: rowsErr }] = await Promise.all([
-    admin.from("teams").select("id, name").eq("id", reg.team_id).maybeSingle(),
+    admin.from("teams").select("id, name, code").eq("id", reg.team_id).maybeSingle(),
     admin
       .from("registrations")
       .select("is_team_head, profile:profiles!profile_id(id, participant_id, full_name, email, college)")
@@ -51,7 +51,8 @@ export async function getTeamForRegistration(
       is_head: r.is_team_head,
     }))
     .sort((a, b) => Number(b.is_head) - Number(a.is_head) || a.full_name.localeCompare(b.full_name, "en"));
-  return { id: (team as { id: string }).id, name: (team as { name: string | null }).name, members };
+  const t = team as { id: string; name: string | null; code: string | null };
+  return { id: t.id, name: t.name, code: t.code, members };
 }
 
 /** Team names by team id (null = unnamed). */

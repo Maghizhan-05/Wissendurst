@@ -11,6 +11,7 @@ import {
   type EventInput,
 } from "@/lib/validation/event";
 import { parseTierRupees } from "@/lib/events/team-pricing";
+import type { PriceWindow } from "@/lib/events/price-windows";
 import {
   notifyApproval,
   notifyPaymentRejected,
@@ -110,6 +111,38 @@ function parsePricing(input: EventInput, formData: FormData): ParsedPricing {
       tiers: tiers.prices,
     },
   };
+}
+
+/** Early bird / late bird / on spot payload (validated client-side and by the RPC). */
+function parseWindows(formData: FormData): { ok: true; windows: PriceWindow[] } | { ok: false; error: string } {
+  const raw = formData.get("price_windows");
+  if (raw == null || raw === "") return { ok: true, windows: [] };
+  let v: unknown;
+  try {
+    v = JSON.parse(String(raw));
+  } catch {
+    return { ok: false, error: "Time-based pricing couldn't be read. Reload and try again." };
+  }
+  if (v === null) return { ok: false, error: "Fix the time-based pricing before saving." };
+  if (!Array.isArray(v) || v.length > 3) return { ok: false, error: "Check the time-based pricing." };
+  return { ok: true, windows: v as PriceWindow[] };
+}
+
+async function saveWindows(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  eventId: string,
+  windows: PriceWindow[],
+): Promise<string | null> {
+  const { error } = await supabase.rpc("admin_set_event_price_windows", {
+    p_event_id: eventId,
+    p_windows: windows,
+  });
+  if (!error) return null;
+  console.error("admin_set_event_price_windows failed:", error);
+  if (error.message?.includes("PRICE_WINDOWS_OVERLAP")) return "Early bird and late bird can't overlap.";
+  if (error.message?.includes("INVALID_PRICE_WINDOW")) return "Check the time-based pricing dates and amounts.";
+  if (error.message?.includes("FORBIDDEN")) return "You don't have permission to manage events.";
+  return "Could not save the time-based pricing.";
 }
 
 async function savePricing(
@@ -326,6 +359,8 @@ export async function createEvent(
   if (!offers.ok) return offers;
   const pricing = parsePricing(parsed.data, formData);
   if (!pricing.ok) return pricing;
+  const windows = parseWindows(formData);
+  if (!windows.ok) return windows;
 
   const supabase = await createClient();
   const parentError = await validateParent(supabase, parsed.data.parent_event_id);
@@ -351,6 +386,11 @@ export async function createEvent(
       ok: false,
       error: `Event created, but its prices weren't saved: ${pricingError} Edit the event to set them.`,
     };
+  }
+  const windowsError = await saveWindows(supabase, (created as { id: string }).id, windows.windows);
+  if (windowsError) {
+    revalidatePath("/admin/events");
+    return { ok: false, error: `Event created, but its time-based pricing wasn't saved: ${windowsError}` };
   }
   if (offers.offers.length > 0) {
     const offerError = await saveOffers(supabase, (created as { id: string }).id, offers.offers);
@@ -385,6 +425,8 @@ export async function updateEvent(
   if (!offers.ok) return offers;
   const pricing = parsePricing(parsed.data, formData);
   if (!pricing.ok) return pricing;
+  const windows = parseWindows(formData);
+  if (!windows.ok) return windows;
 
   const supabase = await createClient();
   const { data: currentRow } = await supabase
@@ -429,6 +471,11 @@ export async function updateEvent(
   if (pricingError) {
     revalidatePath("/admin/events");
     return { ok: false, error: `Event saved, but its prices weren't: ${pricingError}` };
+  }
+  const windowsError = await saveWindows(supabase, id, windows.windows);
+  if (windowsError) {
+    revalidatePath("/admin/events");
+    return { ok: false, error: `Event saved, but its time-based pricing wasn't: ${windowsError}` };
   }
   const offerError = await saveOffers(supabase, id, offers.offers);
   if (offerError) {

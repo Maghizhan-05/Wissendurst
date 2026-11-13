@@ -4,6 +4,7 @@ import { EventsExplorer } from "@/components/events/events-explorer";
 import {
   getTopLevelEvents,
   getSubEventCounts,
+  getActivePriceWindows,
   getMyOfferPrices,
   soloDiscounts,
 } from "@/lib/data/events";
@@ -29,7 +30,11 @@ export default async function EventsPage({
     getMyRegisteredEventIds(),
     getEventFilterConfig(),
   ]);
-  const discounts = soloDiscounts(await getMyOfferPrices(events.map((e) => e.id)));
+  const [offerPrices, priceWindows] = await Promise.all([
+    getMyOfferPrices(events.map((e) => e.id)),
+    getActivePriceWindows(events.map((e) => e.id)),
+  ]);
+  const discounts = soloDiscounts(offerPrices);
 
   return (
     <div className="py-14 md:py-20">
@@ -52,6 +57,7 @@ export default async function EventsPage({
             events={events}
             subEventCounts={subEventCounts}
             discounts={discounts}
+            priceWindows={priceWindows}
             registeredIds={[...registeredIds]}
             initialCategory={category}
             filterConfig={filterConfig}

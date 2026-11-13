@@ -61,6 +61,7 @@ export function TeamPanel({
   registrationId,
   eventId,
   teamName,
+  teamCode = null,
   members,
   editable,
   locked,
@@ -72,6 +73,8 @@ export function TeamPanel({
   registrationId: string;
   eventId: string;
   teamName: string | null;
+  /** Team registration code (0032), once the team has two or more members. */
+  teamCode?: string | null;
   members: PanelMember[];
   /** Head, unpaid, no payment evidence, live hold (the RPC re-checks). */
   editable: boolean;
@@ -147,7 +150,7 @@ export function TeamPanel({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p id="your-team-heading" className="text-xs font-medium uppercase tracking-wider text-muted">
-            Your team
+            Your team{teamCode ? <span className="ml-2 font-mono normal-case tracking-normal text-brand">{teamCode}</span> : null}
           </p>
           {!editing && (
             <p className="mt-1 break-words font-display text-lg font-semibold text-foreground">

@@ -230,6 +230,7 @@ export default async function PaymentPage({
                 registrationId={registration.id}
                 eventId={event.id}
                 teamName={team.name}
+                teamCode={team.code}
                 members={team.members}
                 editable={teamEditable}
                 locked={teamLocked}

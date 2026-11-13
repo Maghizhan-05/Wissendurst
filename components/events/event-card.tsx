@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { CategoryName } from "./categories-context";
 import { formatEventDate, formatINR, cn } from "@/lib/utils";
 import type { EventRow } from "@/types/database";
+import { PRICE_WINDOW_LABELS, adjustedPrice, type PriceWindowKind } from "@/lib/events/price-windows";
 
 export function EventCard({
   event,
@@ -12,7 +13,10 @@ export function EventCard({
   registered,
   subEventCount = 0,
   discountPaise = 0,
+  priceWindow = null,
 }: {
+  /** Early bird / late bird / on spot adjustment in force (0032). */
+  priceWindow?: { kind: PriceWindowKind; adjustment: number } | null;
   event: EventRow;
   className?: string;
   registered?: boolean;
@@ -23,8 +27,11 @@ export function EventCard({
 }) {
   const isContainer = subEventCount > 0;
   const covered = !isContainer && Boolean(event.general_registration_covered);
-  const discounted = !covered && !isContainer && discountPaise > 0 && event.registration_fee > 0;
-  const finalFee = Math.max(event.registration_fee - discountPaise, 0);
+  // Price for one person now, including any early/late bird or on-spot change.
+  const fee = adjustedPrice(event.registration_fee, priceWindow?.adjustment ?? 0, 1);
+  const discounted = !covered && !isContainer && discountPaise > 0 && fee > 0;
+  const finalFee = Math.max(fee - discountPaise, 0);
+  const windowBadge = !covered && !isContainer && priceWindow ? PRICE_WINDOW_LABELS[priceWindow.kind] : null;
   return (
     <Link
       href={`/events/${event.slug}`}
@@ -53,6 +60,7 @@ export function EventCard({
             <Badge tone="success">Save {formatINR(discountPaise)}</Badge>
           )}
           {covered && <Badge tone="brand">General Registration</Badge>}
+          {windowBadge && <Badge tone="warning">{windowBadge}</Badge>}
         </div>
         {!event.is_live ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-background/60 text-center backdrop-blur-[1px]">
@@ -103,7 +111,7 @@ export function EventCard({
           ) : discounted ? (
             <span className="flex items-baseline gap-1.5">
               <span className="font-mono text-xs text-muted line-through">
-                {formatINR(event.registration_fee)}
+                {formatINR(fee)}
               </span>
               <span className="font-mono text-sm font-semibold text-success">
                 {finalFee === 0 ? "Free" : formatINR(finalFee)}
@@ -111,7 +119,8 @@ export function EventCard({
             </span>
           ) : (
             <span className="font-mono text-sm font-semibold text-foreground">
-              {event.registration_fee === 0 ? "Free" : formatINR(event.registration_fee)}
+              {fee === 0 ? "Free" : formatINR(fee)}
+              {event.team_enabled ? <span className="ml-1 font-sans text-xs font-normal text-muted">solo</span> : null}
             </span>
           )}
           {event.is_live ? (

@@ -1,6 +1,7 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
 import { queryError } from "@/lib/supabase/query-error";
+import type { PriceWindow } from "@/lib/events/price-windows";
 import type {
   EventOfferRow,
   EventRow,
@@ -248,6 +249,17 @@ export async function getEventOffersForSource(
   return (data as EventOfferRow[]) ?? [];
 }
 
+/** Early bird / late bird / on spot settings of one event (0032). */
+export async function getEventPriceWindows(eventId: string): Promise<PriceWindow[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("event_pricing_windows")
+    .select("kind, starts_at, ends_at, adjustment")
+    .eq("event_id", eventId);
+  if (error) throw queryError("event_pricing_windows", error);
+  return (data ?? []) as PriceWindow[];
+}
+
 /** Saved per-size team prices (paise, index 0 = size 1) of one event. */
 export async function getEventTeamPrices(eventId: string): Promise<number[]> {
   const supabase = await createClient();
@@ -281,7 +293,7 @@ export async function getRegistrationsAdmin(
   let query = supabase
     .from("registrations")
     .select(
-      "*, event:events!registrations_event_id_fkey(id,slug,title,registration_fee), profile:profiles!profile_id(id,participant_id,full_name,email,phone), team:teams!team_id(name,member_count)",
+      "*, event:events!registrations_event_id_fkey(id,slug,title,registration_fee), profile:profiles!profile_id(id,participant_id,full_name,email,phone), team:teams!team_id(name,member_count,code)",
     )
     // Confirmed registrations only (free, or payment verified). Intents,
     // submissions and rejections live in the Payments queue.
@@ -302,7 +314,7 @@ export async function getRegistrationAdmin(
   const { data, error } = await supabase
     .from("registrations")
     .select(
-      "*, event:events!registrations_event_id_fkey(id,slug,title,registration_fee), profile:profiles!profile_id(id,participant_id,full_name,email,phone), team:teams!team_id(name,member_count)",
+      "*, event:events!registrations_event_id_fkey(id,slug,title,registration_fee), profile:profiles!profile_id(id,participant_id,full_name,email,phone), team:teams!team_id(name,member_count,code)",
     )
     .eq("id", id)
     .maybeSingle();
@@ -318,7 +330,7 @@ export async function getPaymentQueue(): Promise<
   const { data, error } = await supabase
     .from("registrations")
     .select(
-      "*, event:events!registrations_event_id_fkey(id,slug,title,registration_fee), profile:profiles!profile_id(id,participant_id,full_name,email,phone), team:teams!team_id(name,member_count)",
+      "*, event:events!registrations_event_id_fkey(id,slug,title,registration_fee), profile:profiles!profile_id(id,participant_id,full_name,email,phone), team:teams!team_id(name,member_count,code)",
     )
     .in("payment_status", ["uploaded", "under_review", "duplicate"])
     .order("registered_at", { ascending: true });

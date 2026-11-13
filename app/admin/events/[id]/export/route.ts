@@ -4,16 +4,15 @@ import { requireScope } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import {
   PAYMENT_STATUS_LABELS,
-  REGISTRATION_STATUS_LABELS,
   type PaymentStatus,
-  type RegistrationStatus,
 } from "@/lib/constants";
-import { teamDisplay } from "@/lib/team-label";
+import { teamLabel } from "@/lib/team-label";
+import { groupRegistrations } from "@/lib/registration-groups";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-interface ExportRow {
+type Profile = {
   participant_id: string | null;
   full_name: string | null;
   email: string | null;
@@ -21,21 +20,36 @@ interface ExportRow {
   college: string | null;
   course: string | null;
   year: string | null;
+};
+
+type Row = {
+  id: string;
+  team_id: string | null;
+  is_team_head: boolean;
   payment_status: PaymentStatus;
-  registration_status: RegistrationStatus;
   transaction_id: string | null;
   amount: number;
   registered_at: string;
-  team: string;
-  team_role: string;
-}
+  team: { name: string | null; member_count: number; code: string | null } | null;
+  profile: Profile | null;
+};
 
 /** Participant-entered text can't start a spreadsheet formula. */
-function spreadsheetText(v: string): string {
-  return /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
+function spreadsheetText(v: string | null | undefined): string {
+  const s = v ?? "";
+  return /^[=+\-@\t\r]/.test(s) ? `'${s}` : s;
 }
 
-/** Downloads an .xlsx of participants registered for a single event. */
+function styleHeader(sheet: ExcelJS.Worksheet) {
+  const row = sheet.getRow(1);
+  row.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0B2528" } };
+  row.font = { bold: true, color: { argb: "FF6CEFE2" } };
+}
+
+/**
+ * Downloads an .xlsx of an event's CONFIRMED registrations: one row per team
+ * registration (0032) and one row per single registration.
+ */
 export async function GET(
   _req: NextRequest,
   ctx: RouteContext<"/admin/events/[id]/export">,
@@ -54,11 +68,11 @@ export async function GET(
     return NextResponse.json({ error: "Event not found" }, { status: 404 });
   }
 
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("registrations")
     .select(
-      "payment_status, registration_status, transaction_id, amount, registered_at, is_team_head, " +
-        "team:teams!team_id(name, member_count), " +
+      "id, team_id, is_team_head, payment_status, transaction_id, amount, registered_at, " +
+        "team:teams!team_id(name, member_count, code), " +
         "profile:profiles!profile_id(participant_id, full_name, email, phone, college, course, year)",
     )
     .eq("event_id", id)
@@ -66,101 +80,90 @@ export async function GET(
     // cancelled rows are not participants.
     .eq("registration_status", "confirmed")
     .order("registered_at", { ascending: true });
+  if (error) {
+    console.error("export query failed:", error);
+    return NextResponse.json({ error: "Export failed" }, { status: 500 });
+  }
 
-  const rows: ExportRow[] = (data ?? []).map((r) => {
-    const rec = r as unknown as {
-      payment_status: PaymentStatus;
-      registration_status: RegistrationStatus;
-      transaction_id: string | null;
-      amount: number;
-      registered_at: string;
-      is_team_head: boolean;
-      team: { name: string | null; member_count: number } | null;
-      profile:
-        | {
-            participant_id: string | null;
-            full_name: string | null;
-            email: string | null;
-            phone: string | null;
-            college: string | null;
-            course: string | null;
-            year: string | null;
-          }
-        | Array<Record<string, string | null>>
-        | null;
-    };
-    const p = Array.isArray(rec.profile) ? rec.profile[0] : rec.profile;
-    return {
-      participant_id: p?.participant_id ?? null,
-      full_name: (p?.full_name as string) ?? null,
-      email: (p?.email as string) ?? null,
-      phone: (p?.phone as string) ?? null,
-      college: (p?.college as string) ?? null,
-      course: (p?.course as string) ?? null,
-      year: (p?.year as string) ?? null,
-      payment_status: rec.payment_status,
-      registration_status: rec.registration_status,
-      transaction_id: rec.transaction_id,
-      amount: rec.amount,
-      registered_at: rec.registered_at,
-      team: teamDisplay(rec.team) ?? "",
-      team_role: teamDisplay(rec.team) ? (rec.is_team_head ? "Head" : "Member") : "",
-    };
-  });
+  const rows = (data ?? []) as unknown as Row[];
+  const { teams, singles } = groupRegistrations(rows);
+  teams.reverse(); // oldest first in the sheet
 
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Wissendurst'27";
   workbook.created = new Date();
-  const sheet = workbook.addWorksheet("Participants");
 
-  sheet.columns = [
+  const teamSheet = workbook.addWorksheet("Team registrations");
+  teamSheet.columns = [
+    { header: "Team code", key: "code", width: 14 },
+    { header: "Team name", key: "name", width: 28 },
+    { header: "Size", key: "size", width: 8 },
+    { header: "Head ID", key: "head_id", width: 16 },
+    { header: "Head name", key: "head_name", width: 24 },
+    { header: "Head email", key: "head_email", width: 28 },
+    { header: "Head phone", key: "head_phone", width: 16 },
+    { header: "Members (ID — name)", key: "members", width: 60 },
+    { header: "Payment", key: "payment", width: 14 },
+    { header: "Transaction ID", key: "txn", width: 20 },
+    { header: "Amount (INR)", key: "amount", width: 14 },
+    { header: "Registered At", key: "at", width: 22 },
+  ];
+  styleHeader(teamSheet);
+  for (const t of teams) {
+    const h = t.head;
+    teamSheet.addRow({
+      code: t.code ?? "",
+      name: spreadsheetText(teamLabel(t.name)),
+      size: t.members.length,
+      head_id: h.profile?.participant_id ?? "",
+      head_name: spreadsheetText(h.profile?.full_name),
+      head_email: h.profile?.email ?? "",
+      head_phone: h.profile?.phone ?? "",
+      members: spreadsheetText(
+        t.members.map((m) => `${m.profile?.participant_id ?? ""} — ${m.profile?.full_name ?? ""}`).join("; "),
+      ),
+      payment: PAYMENT_STATUS_LABELS[h.payment_status] ?? h.payment_status,
+      txn: h.transaction_id ?? "",
+      amount: h.amount / 100,
+      at: new Date(h.registered_at).toLocaleString("en-IN"),
+    });
+  }
+  teamSheet.getColumn("amount").numFmt = "#,##0.00";
+
+  const singleSheet = workbook.addWorksheet("Single registrations");
+  singleSheet.columns = [
     { header: "Participant ID", key: "participant_id", width: 16 },
     { header: "Name", key: "full_name", width: 26 },
     { header: "Email", key: "email", width: 30 },
     { header: "Phone", key: "phone", width: 16 },
     { header: "College", key: "college", width: 28 },
-    { header: "Team", key: "team", width: 28 },
-    { header: "Team role", key: "team_role", width: 12 },
     { header: "Course", key: "course", width: 14 },
     { header: "Year", key: "year", width: 14 },
-    { header: "Payment", key: "payment_status", width: 16 },
-    { header: "Registration", key: "registration_status", width: 16 },
-    { header: "Transaction ID", key: "transaction_id", width: 22 },
+    { header: "Payment", key: "payment", width: 14 },
+    { header: "Transaction ID", key: "txn", width: 20 },
     { header: "Amount (INR)", key: "amount", width: 14 },
-    { header: "Registered At", key: "registered_at", width: 22 },
+    { header: "Registered At", key: "at", width: 22 },
   ];
-
-  sheet.getRow(1).font = { bold: true };
-  sheet.getRow(1).fill = {
-    type: "pattern",
-    pattern: "solid",
-    fgColor: { argb: "FF0B2528" },
-  };
-  sheet.getRow(1).font = { bold: true, color: { argb: "FF6CEFE2" } };
-
-  for (const r of rows) {
-    sheet.addRow({
-      participant_id: r.participant_id ?? "",
-      full_name: r.full_name ?? "",
-      email: r.email ?? "",
-      phone: r.phone ?? "",
-      college: r.college ?? "",
-      team: spreadsheetText(r.team),
-      team_role: r.team_role,
-      course: r.course ?? "",
-      year: r.year ?? "",
-      payment_status: PAYMENT_STATUS_LABELS[r.payment_status] ?? r.payment_status,
-      registration_status:
-        REGISTRATION_STATUS_LABELS[r.registration_status] ??
-        r.registration_status,
-      transaction_id: r.transaction_id ?? "",
+  styleHeader(singleSheet);
+  for (const r of singles) {
+    const p = r.profile;
+    singleSheet.addRow({
+      participant_id: p?.participant_id ?? "",
+      full_name: spreadsheetText(p?.full_name),
+      email: p?.email ?? "",
+      phone: p?.phone ?? "",
+      college: spreadsheetText(p?.college),
+      course: spreadsheetText(p?.course),
+      year: spreadsheetText(p?.year),
+      payment: PAYMENT_STATUS_LABELS[r.payment_status] ?? r.payment_status,
+      txn: r.transaction_id ?? "",
       amount: r.amount / 100,
-      registered_at: new Date(r.registered_at).toLocaleString("en-IN"),
+      at: new Date(r.registered_at).toLocaleString("en-IN"),
     });
   }
-
-  sheet.getColumn("amount").numFmt = "#,##0.00";
-  sheet.autoFilter = { from: "A1", to: "N1" };
+  singleSheet.getColumn("amount").numFmt = "#,##0.00";
+  teamSheet.autoFilter = { from: "A1", to: "L1" };
+  singleSheet.autoFilter = { from: "A1", to: "K1" };
 
   const buffer = await workbook.xlsx.writeBuffer();
   const filename = `${event.slug}-participants.xlsx`;

@@ -5,7 +5,7 @@ import { Featured } from "@/components/landing/featured";
 import { WhyParticipate } from "@/components/landing/why-participate";
 import { Journey } from "@/components/landing/journey";
 import { ImportantInfo, FinalCta } from "@/components/landing/info-cta";
-import { getFeaturedEvents } from "@/lib/data/events";
+import { getActivePriceWindows, getFeaturedEvents } from "@/lib/data/events";
 import { getMyRegisteredEventIds } from "@/lib/data/registrations";
 import { getLandingContent } from "@/lib/data/settings";
 
@@ -15,6 +15,7 @@ export default async function LandingPage() {
     getMyRegisteredEventIds(),
     getLandingContent(),
   ]);
+  const priceWindows = await getActivePriceWindows(featured.map((e) => e.id));
 
   return (
     <>
@@ -25,6 +26,7 @@ export default async function LandingPage() {
         events={featured}
         registeredIds={registeredIds}
         featured={content.featured}
+        priceWindows={priceWindows}
       />
       <WhyParticipate why={content.why} />
       <Journey journey={content.journey} />

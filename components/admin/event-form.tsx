@@ -9,6 +9,8 @@ import type { AdminActionState } from "@/lib/actions/admin";
 import type { OfferTargetOption } from "@/lib/data/admin";
 import { EventOffersEditor, type OfferDraft } from "@/components/admin/event-offers-editor";
 import { TeamPricingEditor } from "@/components/admin/team-pricing-editor";
+import { PriceWindowsEditor } from "@/components/admin/price-windows-editor";
+import type { PriceWindow } from "@/lib/events/price-windows";
 import type { EventRow } from "@/types/database";
 
 type Action = (
@@ -26,7 +28,10 @@ export function EventForm({
   lockedParent,
   categories,
   teamPrices = [],
+  priceWindows = [],
 }: {
+  /** Saved early bird / late bird / on spot settings (0032). */
+  priceWindows?: PriceWindow[];
   /** Saved per-size team prices (paise, index 0 = size 1). */
   teamPrices?: number[];
   /**
@@ -258,6 +263,8 @@ export function EventForm({
         prices={teamPrices}
         soloFeeRupees={event ? String(event.registration_fee / 100) : "0"}
       />
+
+      <PriceWindowsEditor initial={priceWindows} />
 
       <EventOffersEditor initialOffers={offers} targets={offerTargets} />
 

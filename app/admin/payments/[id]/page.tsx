@@ -107,7 +107,10 @@ export default async function PaymentReviewPage({
               <Row label="Event">{reg.event.title}</Row>
               {teamDisplay(reg.team) && (
                 <Row label="Team">
-                  <span className="break-words">{teamDisplay(reg.team)}</span>
+                  <span className="break-words">
+                    {reg.team?.code ? `${reg.team.code} · ` : ""}
+                    {teamDisplay(reg.team)}
+                  </span>
                   <span className="ml-2 text-xs text-muted">
                     {reg.is_team_head ? `head · ${reg.team?.member_count} people` : "member"}
                   </span>

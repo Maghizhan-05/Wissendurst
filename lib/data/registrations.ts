@@ -50,7 +50,7 @@ export async function getMyRegistrations(): Promise<
   const [{ data, error }, states] = await Promise.all([
     supabase
       .from("registrations")
-      .select("*, event:events!registrations_event_id_fkey(*), team:teams!team_id(name,member_count)")
+      .select("*, event:events!registrations_event_id_fkey(*), team:teams!team_id(name,member_count,code)")
       // Only completed registrations (free, or payment verified). Payment
       // intents, submissions under review and rejected payments stay on the
       // event page / payment route, never in the participant's history.
@@ -73,7 +73,7 @@ export async function getMyRegistration(
   const [{ data, error }, states] = await Promise.all([
     supabase
       .from("registrations")
-      .select("*, event:events!registrations_event_id_fkey(*), team:teams!team_id(name,member_count)")
+      .select("*, event:events!registrations_event_id_fkey(*), team:teams!team_id(name,member_count,code)")
       .eq("id", id)
       .maybeSingle(),
     getMyRegistrationStates(),

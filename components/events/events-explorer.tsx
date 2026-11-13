@@ -16,6 +16,7 @@ import {
   type EventFilterConfig,
 } from "@/lib/events/filter-config";
 import type { EventRow } from "@/types/database";
+import type { ActivePriceWindow } from "@/lib/data/events";
 
 type SortKey = "date" | "fee-asc" | "fee-desc" | "title";
 
@@ -24,6 +25,7 @@ export function EventsExplorer({
   registeredIds,
   subEventCounts = {},
   discounts = {},
+  priceWindows = {},
   initialCategory,
   filterConfig: filterConfigProp,
 }: {
@@ -33,6 +35,8 @@ export function EventsExplorer({
   registeredIds: string[];
   subEventCounts?: Record<string, number>;
   discounts?: Record<string, number>;
+  /** Early bird / late bird / on spot in force, by event id (0032). */
+  priceWindows?: Record<string, ActivePriceWindow>;
   initialCategory?: string;
 }) {
   const [query, setQuery] = useState("");
@@ -159,6 +163,7 @@ export function EventsExplorer({
               registered={registered.has(event.id)}
               subEventCount={subEventCounts[event.id] ?? 0}
               discountPaise={discounts[event.id] ?? 0}
+              priceWindow={priceWindows[event.id] ?? null}
             />
           ))}
         </div>

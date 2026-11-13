@@ -4,6 +4,7 @@ import { Reveal } from "@/components/motion/reveal";
 import { ButtonLink } from "@/components/ui/button";
 import { EventCard } from "@/components/events/event-card";
 import type { EventRow } from "@/types/database";
+import type { ActivePriceWindow } from "@/lib/data/events";
 import { safeHrefOr } from "@/components/content/safe-link";
 import type { LandingContent } from "@/lib/content/landing";
 
@@ -11,7 +12,9 @@ export function Featured({
   events,
   registeredIds,
   featured,
+  priceWindows = {},
 }: {
+  priceWindows?: Record<string, ActivePriceWindow>;
   events: EventRow[];
   registeredIds: Set<string>;
   featured: LandingContent["featured"];
@@ -40,7 +43,7 @@ export function Featured({
         <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {events.map((event, i) => (
             <Reveal key={event.id} delay={i * 0.06}>
-              <EventCard event={event} registered={registeredIds.has(event.id)} />
+              <EventCard event={event} registered={registeredIds.has(event.id)} priceWindow={priceWindows[event.id] ?? null} />
             </Reveal>
           ))}
         </div>

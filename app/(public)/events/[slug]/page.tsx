@@ -24,11 +24,14 @@ import {
   getSubEventCounts,
   getEventAncestors,
   getEventCapacityCounts,
+  getActivePriceWindows,
   getMyOfferPrices,
   getTeamSizePrices,
   soloDiscounts,
 } from "@/lib/data/events";
 import { teamPriceSummary } from "@/lib/events/team-pricing";
+import { PRICE_WINDOW_LABELS, adjustedPrice } from "@/lib/events/price-windows";
+import { formatHoldDeadline } from "@/lib/payment-intent";
 import {
   getMyRegistrationForEvent,
   getMyRegisteredEventIds,
@@ -77,9 +80,11 @@ export default async function EventPage({
       getSubEventCounts(),
       getEventAncestors(event),
     ]);
-    const discounts = soloDiscounts(
-      await getMyOfferPrices(subEvents.map((s) => s.id)),
-    );
+    const [subOfferPrices, subWindows] = await Promise.all([
+      getMyOfferPrices(subEvents.map((s) => s.id)),
+      getActivePriceWindows(subEvents.map((s) => s.id)),
+    ]);
+    const discounts = soloDiscounts(subOfferPrices);
     return (
       <article className="py-10 md:py-14">
         <EventBackground category={event.category} slug={event.slug} />
@@ -123,6 +128,7 @@ export default async function EventPage({
                 registered={registeredIds.has(sub.id)}
                 subEventCount={counts[sub.id] ?? 0}
                 discountPaise={discounts[sub.id] ?? 0}
+                priceWindow={subWindows[sub.id] ?? null}
               />
             ))}
           </div>
@@ -145,6 +151,14 @@ export default async function EventPage({
   const discountPaise = offerPrices?.solo.discount ?? 0;
   // Team events: one price per team size (0030), offers applied when signed in.
   const teamPrices = event.team_enabled ? await getTeamSizePrices(event.id) : [];
+  // Early bird / late bird / on spot in force now (0032), per person.
+  const priceWindow = (await getActivePriceWindows([event.id]))[event.id] ?? null;
+  const soloFee = adjustedPrice(event.registration_fee, priceWindow?.adjustment ?? 0, 1);
+  const windowNote = priceWindow
+    ? ` · ${PRICE_WINDOW_LABELS[priceWindow.kind]}${
+        priceWindow.ends_at ? ` until ${formatHoldDeadline(new Date(priceWindow.ends_at))}` : ""
+      }`
+    : "";
 
   // Capacity use = confirmed registrations + live 72-hour payment-intent holds.
   const taken = counts[event.id]?.seatsTaken ?? 0;
@@ -178,7 +192,7 @@ export default async function EventPage({
       icon: IndianRupee,
       label: "Fee",
       value:
-        event.team_enabled && teamPrices.length > 0
+        (event.team_enabled && teamPrices.length > 0
           ? teamPrices.every((t) => t.list === 0)
             ? "Free"
             : teamPriceSummary(
@@ -186,9 +200,9 @@ export default async function EventPage({
                 event.team_min,
                 formatINR,
               )
-          : event.registration_fee === 0
+          : soloFee === 0
             ? "Free"
-            : formatINR(event.registration_fee),
+            : formatINR(soloFee)) + windowNote,
     },
     {
       icon: Users,
@@ -250,7 +264,7 @@ export default async function EventPage({
                 isLive={event.is_live}
                 registrationOpen={event.registration_open}
                 isFull={isFull}
-                fee={event.registration_fee}
+                fee={soloFee}
                 discountPaise={discountPaise}
                 existing={activeRegistration}
                 expiredIntent={expiredIntent}
