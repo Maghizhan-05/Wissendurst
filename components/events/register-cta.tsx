@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useEffect } from "react";
@@ -8,6 +9,8 @@ import { Clock, Lock, Ticket, Users } from "lucide-react";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { registerForEvent, type ActionResult } from "@/lib/actions/registration";
 import { TeamRegister } from "@/components/events/team-register";
+import { track } from "@/components/analytics/bridge";
+import { registrationProps } from "@/lib/analytics/events";
 import type { TeamSizePriceView } from "@/components/events/team-builder";
 import { formatINR } from "@/lib/utils";
 import {
@@ -50,6 +53,7 @@ export function RegisterCta({ expiredIntent = false, ...props }: RegisterCtaProp
 function RegisterCtaBody({
   eventId,
   slug,
+  category = null,
   isLoggedIn,
   isLive,
   registrationOpen,
@@ -71,6 +75,8 @@ function RegisterCtaBody({
   generallyRegistered?: boolean;
   eventId: string;
   slug: string;
+  /** Public category slug (anonymous analytics only). */
+  category?: string | null;
   isLoggedIn: boolean;
   isLive: boolean;
   registrationOpen: boolean;
@@ -93,9 +99,16 @@ function RegisterCtaBody({
     null,
   );
 
+  const router = useRouter();
   useEffect(() => {
     if (state && !state.ok) toast.error(state.error);
-  }, [state]);
+    // Free registration confirmed: record the anonymous event (only if the
+    // visitor consented), then go to My Events.
+    if (state?.ok && state.next) {
+      track("free_registration_confirmed", registrationProps({ slug, category }));
+      router.push(state.next);
+    }
+  }, [state, router, slug, category]);
 
   if (existing) {
     // A teammate (not the head) doesn't pay — the head covers the team.
@@ -243,6 +256,7 @@ function RegisterCtaBody({
       <TeamRegister
         eventId={eventId}
         slug={slug}
+        category={category}
         prices={teamPrices}
         teamMin={teamMin}
         teamMax={teamMax}
@@ -256,7 +270,11 @@ function RegisterCtaBody({
   const finalFee = Math.max(fee - discountPaise, 0);
 
   return (
-    <form action={formAction} className="flex flex-col gap-3">
+    <form
+      action={formAction}
+      onSubmit={() => track("registration_started", registrationProps({ slug, category }))}
+      className="flex flex-col gap-3"
+    >
       <input type="hidden" name="event_id" value={eventId} />
       <input type="hidden" name="slug" value={slug} />
       {grNote}

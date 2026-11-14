@@ -11,6 +11,7 @@ import { ButtonLink } from "@/components/ui/button";
 import { Container } from "@/components/ui/container";
 import { cn } from "@/lib/utils";
 import { SITE } from "@/lib/constants";
+import { NO_CAPTURE_CLASS } from "@/lib/analytics/privacy";
 
 type NavUser = {
   participantId: string;
@@ -85,7 +86,7 @@ export function Navbar({ user, socialLinks = [] }: { user: NavUser; socialLinks?
             </ButtonLink>
           )}
           {user ? (
-            <ButtonLink href="/dashboard" variant="secondary" size="sm">
+            <ButtonLink href="/dashboard" variant="secondary" size="sm" className={NO_CAPTURE_CLASS}>
               <LayoutDashboard className="size-4" /> {user.participantId}
             </ButtonLink>
           ) : (
@@ -139,7 +140,7 @@ export function Navbar({ user, socialLinks = [] }: { user: NavUser; socialLinks?
                 </ButtonLink>
               )}
               {user ? (
-                <ButtonLink href="/dashboard" variant="secondary" className="w-full">
+                <ButtonLink href="/dashboard" variant="secondary" className={`${NO_CAPTURE_CLASS} w-full`}>
                   Dashboard · {user.participantId}
                 </ButtonLink>
               ) : (

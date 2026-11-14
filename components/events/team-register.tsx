@@ -1,9 +1,13 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { registerTeam, type ActionResult, type TeamMember } from "@/lib/actions/registration";
+import { track } from "@/components/analytics/bridge";
+import { registrationProps } from "@/lib/analytics/events";
+import { NO_CAPTURE_CLASS } from "@/lib/analytics/privacy";
 import {
   AddTeammate,
   MemberRow,
@@ -25,6 +29,7 @@ type Head = {
 export function TeamRegister({
   eventId,
   slug,
+  category = null,
   prices,
   teamMin,
   teamMax,
@@ -32,6 +37,8 @@ export function TeamRegister({
 }: {
   eventId: string;
   slug: string;
+  /** Public category slug (anonymous analytics only). */
+  category?: string | null;
   /** Price of every team size 1..teamMax for this head (offers applied). */
   prices: TeamSizePriceView[];
   teamMin: number;
@@ -46,11 +53,18 @@ export function TeamRegister({
     async (_prev: ActionResult | null, formData: FormData) => registerTeam(formData),
     null,
   );
+  const teamSize = members.length + 1; // + head
+  const router = useRouter();
+  const handled = useRef<ActionResult | null>(null);
   useEffect(() => {
     if (state && !state.ok) toast.error(state.error);
-  }, [state]);
-
-  const teamSize = members.length + 1; // + head
+    // Free team confirmed: anonymous, consent-gated event, then My Events.
+    if (state?.ok && state.next && handled.current !== state) {
+      handled.current = state;
+      track("free_registration_confirmed", registrationProps({ slug, category, teamSize }));
+      router.push(state.next);
+    }
+  }, [state, router, slug, category, teamSize]);
   const needsName = teamSize >= 2;
   const nameError = needsName ? teamNameError(name) : null;
   const sizeOk = teamSize >= teamMin && teamSize <= teamMax;
@@ -58,7 +72,8 @@ export function TeamRegister({
   const canSubmit = sizeOk && !nameError && price !== null;
 
   return (
-    <div className="rounded-2xl border border-border bg-surface p-5">
+    // Names, emails and participant IDs of the team: never in replay/autocapture (D-024).
+    <div className={`${NO_CAPTURE_CLASS} rounded-2xl border border-border bg-surface p-5`}>
       <div className="flex items-center justify-between gap-3">
         <h3 className="font-display text-lg font-semibold text-foreground">Register your team</h3>
         <span className="shrink-0 text-sm text-muted">
@@ -111,7 +126,10 @@ export function TeamRegister({
 
       <form
         action={formAction}
-        onSubmit={() => setNameTouched(true)}
+        onSubmit={() => {
+          setNameTouched(true);
+          if (canSubmit) track("registration_started", registrationProps({ slug, category, teamSize }));
+        }}
         className="mt-5 border-t border-border pt-5"
       >
         <input type="hidden" name="event_id" value={eventId} />

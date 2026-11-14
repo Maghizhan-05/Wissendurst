@@ -7,7 +7,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { notifyRegistrationConfirmed } from "@/lib/email/notify";
 import type { RegistrationRow } from "@/types/database";
 
-export type ActionResult = { ok: false; error: string } | { ok: true };
+/**
+ * `next` is set only when a FREE registration was confirmed: the event page
+ * navigates there itself (instead of a server redirect) so it can record the
+ * anonymous, consent-gated `free_registration_confirmed` event first (D-024).
+ */
+export type ActionResult = { ok: false; error: string } | { ok: true; next?: string };
+
+const FREE_CONFIRMED_NEXT = "/dashboard/registrations?joined=1";
 
 const RPC_ERRORS: Record<string, string> = {
   AUTH_REQUIRED: "Please sign in to register.",
@@ -117,8 +124,8 @@ export async function registerForEvent(formData: FormData): Promise<ActionResult
   }
 
   if (reg.payment_status === "verified") {
-    // Free event — already confirmed.
-    redirect("/dashboard/registrations?joined=1");
+    // Free event — already confirmed; the event page navigates to `next`.
+    return { ok: true, next: FREE_CONFIRMED_NEXT };
   }
   redirect(`/dashboard/payment/${reg.id}`);
 }
@@ -273,7 +280,7 @@ export async function registerTeam(formData: FormData): Promise<ActionResult> {
   }
 
   if (reg.payment_status === "verified") {
-    redirect("/dashboard/registrations?joined=1");
+    return { ok: true, next: FREE_CONFIRMED_NEXT };
   }
   redirect(`/dashboard/payment/${reg.id}`);
 }

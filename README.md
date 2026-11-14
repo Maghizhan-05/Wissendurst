@@ -41,6 +41,7 @@ cp .env.example .env.local
 | `NEXT_PUBLIC_UPI_ID`                   | your college UPI VPA              | shown on payment page              |
 | `NEXT_PUBLIC_UPI_PAYEE_NAME`           | payee display name                | shown on payment page              |
 | `NEXT_PUBLIC_SITE_URL`                 | e.g. `http://localhost:3000`      | used for OG/sitemap/auth redirects |
+| `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN`    | PostHog (EU) → Project settings   | optional, public `phc_…`; empty = analytics fully off |
 
 `.env.local` is gitignored. The service-role key is only ever imported by
 `lib/supabase/admin.ts`, which is marked `server-only` so a build fails if it is
@@ -168,6 +169,56 @@ callers. UTR/reference parsing lives in a pure, testable module (`lib/ocr/utr.ts
 2. Add all env vars from `.env.example` (set `NEXT_PUBLIC_SITE_URL` to the prod URL).
 3. Update Supabase **Redirect URLs** to include `https://your-domain/auth/callback`.
 4. Deploy. OCR.space runs fine on Vercel serverless functions.
+
+## Analytics (PostHog Cloud EU, consent-first — D-024)
+
+Analytics is **off unless `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` is set** (a public
+`phc_…` project token). Without it nothing renders, loads or connects: no consent
+banner, no "Cookie preferences" control, no SDK chunk, no PostHog requests.
+
+With a token:
+
+- **Consent first.** A banner on `/` only (equal Accept / Decline). The choice is
+  a versioned first-party cookie `wd_analytics_consent` (`v1.granted` /
+  `v1.denied`, one year, `Path=/`, `SameSite=Lax`, `Secure` in production).
+  "Cookie preferences" in the footer reopens it. **Global Privacy Control or Do
+  Not Track is an absolute "no"** that no click overrides; it is never stored.
+- **SDK only after consent**, via a dynamic import of
+  `posthog-js/dist/module.full.no-external` (all extensions compiled in;
+  `disable_external_dependency_loading`). Host fixed to `https://eu.i.posthog.com`.
+- **Routes:** PostHog operates only on `/`, `/events`, `/events/[slug]`, `/about`,
+  `/schedule`, `/general-registration` (`lib/analytics/routes.ts`). It is never
+  mounted on sign-in/sign-up/password, `/application`, `/pending-approval`,
+  `/blocked`, `/dashboard/**` or `/admin/**`; client navigation away stops replay
+  and suspends capture at once.
+- **Captured after consent:** page views/leaves, click/submit autocapture,
+  click heatmaps, scroll depth (scrollmaps), masked session replay, and four
+  typed events: `consent_granted`, `consent_denied` (on withdrawal),
+  `registration_started`, `free_registration_confirmed`. No server-side
+  analytics, no payment events, never `identify()` (`person_profiles:
+  'identified_only'`).
+- **Privacy:** all inputs masked; replay text masked except reviewed static
+  copy marked `data-ph-unmask`; images, canvas, QR codes, coordinator/footer
+  contacts, team rosters, the General Registration status/payment panel and the
+  navbar participant ID are blocked (`ph-no-capture`). Every event passes
+  `lib/analytics/sanitize.ts` before send: same-origin pathname only (no query,
+  hash or referrer), allow-listed events/properties only, PII-shaped values
+  removed. Surveys, flags, exceptions, console, network, canvas and site apps
+  are disabled (`lib/analytics/posthog-options.ts`).
+
+### PostHog console checklist (owner)
+
+1. Create the project in the **EU** region (`eu.posthog.com`).
+2. Copy the project's public token into Vercel → Environment Variables as
+   `NEXT_PUBLIC_POSTHOG_PROJECT_TOKEN` for **Production only** (Preview and
+   Development stay empty/inert), then redeploy.
+3. Project settings → **Authorized URLs**: only the exact production origin.
+4. Project settings → **Discard client IP data**: on.
+5. Session replay: enable it, and choose the **shortest useful retention**.
+6. Billing → set a **usage alert** / keep within the free tier (autocapture and
+   replay add volume).
+7. **No data pipelines / destinations / site apps.**
+8. Keep project membership restricted to the owner account.
 
 ## Troubleshooting
 

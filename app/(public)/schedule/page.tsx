@@ -28,7 +28,8 @@ export default async function SchedulePage() {
   const days = [...byDate.entries()].sort((a, b) => a[0].localeCompare(b[0]));
 
   return (
-    <div className="py-14 md:py-20">
+    // Public CMS/event copy: visible in masked session replay (D-024).
+    <div className="py-14 md:py-20" data-ph-unmask>
       <Container>
         <SectionHeading
           eyebrow={copy.eyebrow}

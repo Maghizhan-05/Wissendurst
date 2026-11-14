@@ -1,5 +1,6 @@
 import { Mail, Phone, UsersRound } from "lucide-react";
 import { mailHref, normalizeStoredCoordinators, telHref } from "@/lib/events/coordinators";
+import { NO_CAPTURE_CLASS } from "@/lib/analytics/privacy";
 
 /**
  * Public coordinator contact cards (0035 / D-023). Renders nothing when the
@@ -10,7 +11,8 @@ export function EventCoordinators({ coordinators }: { coordinators: unknown }) {
   const list = normalizeStoredCoordinators(coordinators);
   if (list.length === 0) return null;
   return (
-    <section aria-labelledby="coordinators-heading">
+    // Contact details: blocked from session replay and autocapture (D-024).
+    <section aria-labelledby="coordinators-heading" className={NO_CAPTURE_CLASS}>
       <h2
         id="coordinators-heading"
         className="flex items-center gap-2 font-display text-2xl font-semibold text-foreground"

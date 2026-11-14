@@ -19,6 +19,7 @@ import { getMyRegisteredEventIds } from "@/lib/data/registrations";
 import { canTakeGeneralRegistration } from "@/lib/general-registration";
 import { dedicatedUpiQrDataUrl } from "@/lib/payment";
 import { formatEventDate, formatINR } from "@/lib/utils";
+import { NO_CAPTURE_CLASS } from "@/lib/analytics/privacy";
 
 export const metadata: Metadata = {
   title: "General Registration",
@@ -50,7 +51,9 @@ export default async function GeneralRegistrationPage() {
         />
 
         <div className="mt-10 grid gap-8 lg:grid-cols-[1.2fr_1fr]">
-          <section aria-labelledby="gr-status-heading" className="space-y-6">
+          {/* Account status, participant ID, UPI QR and payment evidence form:
+              blocked from session replay and autocapture (D-024). */}
+          <section aria-labelledby="gr-status-heading" className={`${NO_CAPTURE_CLASS} space-y-6`}>
             <h2 id="gr-status-heading" className="sr-only">
               Your General Registration
             </h2>

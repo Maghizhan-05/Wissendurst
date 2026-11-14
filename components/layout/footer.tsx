@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Container } from "@/components/ui/container";
 import { SITE } from "@/lib/constants";
+import { CookiePreferencesButton } from "@/components/analytics/cookie-preferences-button";
+import { NO_CAPTURE_CLASS } from "@/lib/analytics/privacy";
 import { DEFAULT_LANDING, type LandingContent } from "@/lib/content/landing";
 
 export function Footer({
@@ -40,7 +42,8 @@ export function Footer({
           <p className="text-xs font-semibold uppercase tracking-wider text-muted">
             {footer.contactHeading}
           </p>
-          <ul className="mt-4 space-y-2 text-sm text-muted">
+          {/* Contact details: never in replay/autocapture (D-024). */}
+          <ul className={`${NO_CAPTURE_CLASS} mt-4 space-y-2 text-sm text-muted`}>
             {footer.contactName && <li>{footer.contactName}</li>}
             {/^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']+$/.test(footer.contactEmail) ? (
               <li><a href={`mailto:${footer.contactEmail}`} className="hover:text-brand">{footer.contactEmail}</a></li>
@@ -55,7 +58,10 @@ export function Footer({
       <div className="border-t border-border">
         <Container className="flex flex-col items-center justify-between gap-2 py-6 text-xs text-muted sm:flex-row">
           <p>© {new Date().getFullYear()} {SITE.name}. All rights reserved.</p>
-          {footer.bottomNote && <p>{footer.bottomNote}</p>}
+          <div className="flex flex-col items-center gap-2 sm:flex-row sm:gap-4">
+            {footer.bottomNote && <p>{footer.bottomNote}</p>}
+            <CookiePreferencesButton />
+          </div>
         </Container>
       </div>
     </footer>

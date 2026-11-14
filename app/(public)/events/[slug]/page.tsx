@@ -104,10 +104,13 @@ export default async function EventPage({
               </Badge>
               {!event.is_live && <Badge tone="warning">Coming soon</Badge>}
             </div>
-            <h1 className="mt-4 font-display text-4xl font-semibold leading-tight text-foreground sm:text-5xl">
-              {event.title}
-            </h1>
-            <p className="mt-4 text-lg text-muted">{event.short_description}</p>
+            {/* Reviewed public copy: visible in masked session replay (D-024). */}
+            <div data-ph-unmask>
+              <h1 className="mt-4 font-display text-4xl font-semibold leading-tight text-foreground sm:text-5xl">
+                {event.title}
+              </h1>
+              <p className="mt-4 text-lg text-muted">{event.short_description}</p>
+            </div>
             {event.description && (
               <div className="mt-6 space-y-4 whitespace-pre-line text-base leading-relaxed text-muted">
                 {event.description}
@@ -256,14 +259,18 @@ export default async function EventPage({
                 <Badge tone="warning">{spotsLeft} spots left</Badge>
               )}
             </div>
-            <h1 className="mt-4 font-display text-4xl font-semibold leading-tight text-foreground sm:text-5xl">
-              {event.title}
-            </h1>
-            <p className="mt-4 text-lg text-muted">{event.short_description}</p>
+            {/* Reviewed public copy: visible in masked session replay (D-024). */}
+            <div data-ph-unmask>
+              <h1 className="mt-4 font-display text-4xl font-semibold leading-tight text-foreground sm:text-5xl">
+                {event.title}
+              </h1>
+              <p className="mt-4 text-lg text-muted">{event.short_description}</p>
+            </div>
             <div className="mt-8">
               <RegisterCta
                 eventId={event.id}
                 slug={event.slug}
+                category={event.category}
                 isLoggedIn={!!profile}
                 isLive={event.is_live}
                 registrationOpen={event.registration_open}
@@ -296,7 +303,7 @@ export default async function EventPage({
 
         {/* Body */}
         <div className="mt-16 grid gap-12 lg:grid-cols-[1.4fr_1fr]">
-          <div className="space-y-12">
+          <div className="space-y-12" data-ph-unmask>
             {event.description && (
               <section>
                 <h2 className="font-display text-2xl font-semibold text-foreground">

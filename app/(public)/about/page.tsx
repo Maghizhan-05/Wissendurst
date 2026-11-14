@@ -22,7 +22,8 @@ export default async function AboutPage() {
   const showCta = cta.visible && (cta.primaryLabel || cta.secondaryLabel);
 
   return (
-    <div className="py-14 md:py-20">
+    // Public CMS/event copy: visible in masked session replay (D-024).
+    <div className="py-14 md:py-20" data-ph-unmask>
       <Container>
         <SectionHeading
           eyebrow={about.eyebrow}

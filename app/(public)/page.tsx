@@ -19,19 +19,24 @@ export default async function LandingPage() {
 
   return (
     <>
-      <Hero hero={content.hero} />
-      <Intro intro={content.intro} />
-      <Categories categories={content.categories} />
+      {/* Reviewed public marketing copy: visible in masked replay (D-024). */}
+      <div className="contents" data-ph-unmask>
+        <Hero hero={content.hero} />
+        <Intro intro={content.intro} />
+        <Categories categories={content.categories} />
+      </div>
       <Featured
         events={featured}
         registeredIds={registeredIds}
         featured={content.featured}
         priceWindows={priceWindows}
       />
-      <WhyParticipate why={content.why} />
-      <Journey journey={content.journey} />
-      <ImportantInfo info={content.info} />
-      <FinalCta finalCta={content.finalCta} />
+      <div className="contents" data-ph-unmask>
+        <WhyParticipate why={content.why} />
+        <Journey journey={content.journey} />
+        <ImportantInfo info={content.info} />
+        <FinalCta finalCta={content.finalCta} />
+      </div>
     </>
   );
 }

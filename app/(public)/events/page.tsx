@@ -39,7 +39,7 @@ export default async function EventsPage({
   return (
     <div className="py-14 md:py-20">
       <Container>
-        <div className="max-w-2xl">
+        <div className="max-w-2xl" data-ph-unmask>
           <p className="text-xs font-medium uppercase tracking-[0.2em] text-brand">
             The Programme
           </p>
