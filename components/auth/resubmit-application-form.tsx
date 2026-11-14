@@ -89,7 +89,7 @@ export function ResubmitApplicationForm({
       )}
 
       <Button type="submit" className="w-full" loading={pending} withArrow>
-        Resubmit application
+        Save and get my participant ID
       </Button>
     </form>
   );

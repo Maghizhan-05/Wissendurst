@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { EventThumb } from "@/components/events/category-visual";
 import { EventCard } from "@/components/events/event-card";
 import { RegisterCta } from "@/components/events/register-cta";
+import { EventCoordinators } from "@/components/events/event-coordinators";
 import {
   getEventBySlug,
   getSubEvents,
@@ -323,6 +324,8 @@ export default async function EventPage({
                 </div>
               </section>
             )}
+
+            <EventCoordinators coordinators={event.coordinators} />
           </div>
 
           {/* Details rail */}

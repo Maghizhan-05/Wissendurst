@@ -7,6 +7,8 @@ import { requireEventArea, requireSuperAdmin } from "@/lib/auth";
 import { eventSchema } from "@/lib/validation/event";
 import { parseRulesText, rulesError } from "@/lib/events/rules";
 import { parseWhatsAppGroupUrl } from "@/lib/email/whatsapp";
+import { parseGoogleFormUrl } from "@/lib/email/google-form";
+import { parseCoordinatorsField } from "@/lib/events/coordinators";
 import { EVENT_PERMISSIONS } from "@/lib/constants";
 import type { AdminActionState } from "@/lib/actions/admin";
 
@@ -19,7 +21,7 @@ const ASSIGNMENT_ERRORS: Record<string, string> = {
   FORBIDDEN: "Only the super admin can change event administrators.",
   INVALID_EVENT_PERMISSION: "Choose valid event permissions.",
   USER_NOT_FOUND: "That account no longer exists.",
-  USER_NOT_APPROVED: "Only approved accounts can administer an event.",
+  USER_NOT_APPROVED: "Only active accounts (sign-up complete) can administer an event.",
   EVENT_NOT_FOUND: "That event no longer exists.",
   EVENT_IS_BROADER:
     "Assign the sub-event people register for, not a broader event with sub-events.",
@@ -107,6 +109,8 @@ export async function updateEventDetails(
   const rules = parseRulesText(parsed.data.rules);
   const rulesProblem = rulesError(rules);
   if (rulesProblem) return { ok: false, error: rulesProblem };
+  const coordinators = parseCoordinatorsField(formData.get("coordinators"));
+  if (!coordinators.ok) return { ok: false, error: coordinators.error };
 
   const supabase = await createClient();
   const { error } = await supabase.rpc("event_admin_update_event_details", {
@@ -126,6 +130,20 @@ export async function updateEventDetails(
       if (error.message?.includes(key)) return { ok: false, error: DETAILS_ERRORS[key] };
     }
     return { ok: false, error: "Could not save the event details." };
+  }
+  // Public coordinator boxes (0035): same Events permission, own RPC.
+  const { error: coordError } = await supabase.rpc("admin_set_event_coordinators", {
+    p_event_id: id,
+    p_coordinators: coordinators.coordinators,
+  });
+  if (coordError) {
+    console.error("admin_set_event_coordinators failed:", coordError);
+    return {
+      ok: false,
+      error: coordError.message?.includes("INVALID_COORDINATORS")
+        ? "Details saved, but check the coordinators: each needs a name and a phone number or email."
+        : "Details saved, but the coordinators couldn't be saved. Please try again.",
+    };
   }
   revalidatePath("/admin/events");
   revalidatePath(`/admin/events/${id}/edit`);
@@ -162,4 +180,33 @@ export async function setEventWhatsAppLink(
   }
   revalidatePath(`/admin/events/${id}/edit`);
   return { ok: true, message: link.url ? "WhatsApp link saved." : "WhatsApp link removed." };
+}
+
+/** Events permission on the event: set or clear its private Google Form link (0035). */
+export async function setEventGoogleFormLink(
+  _prev: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  await requireEventArea("events");
+  const id = String(formData.get("id") ?? "");
+  if (!uuid.safeParse(id).success) return { ok: false, error: "Missing event id." };
+  const link = parseGoogleFormUrl(formData.get("google_form_url"));
+  if (!link.ok) return link;
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_set_event_google_form_link", {
+    p_event_id: id,
+    p_url: link.url,
+  });
+  if (error) {
+    console.error("admin_set_event_google_form_link failed:", error);
+    if (error.message?.includes("INVALID_GOOGLE_FORM_LINK"))
+      return { ok: false, error: "Use the form's share link — https://forms.gle/… or https://docs.google.com/forms/d/e/…/viewform." };
+    if (error.message?.includes("FORBIDDEN"))
+      return { ok: false, error: "You don't have permission to edit this event." };
+    if (error.message?.includes("EVENT_NOT_FOUND")) return { ok: false, error: "That event no longer exists." };
+    return { ok: false, error: "Could not save the Google Form link." };
+  }
+  revalidatePath(`/admin/events/${id}/edit`);
+  return { ok: true, message: link.url ? "Google Form link saved." : "Google Form link removed." };
 }

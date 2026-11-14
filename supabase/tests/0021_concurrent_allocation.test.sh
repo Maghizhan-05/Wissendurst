@@ -8,6 +8,12 @@ set -euo pipefail
 : "${PSQL_CMD:?PSQL_CMD must be set by scripts/test-db.sh}"
 run() { $PSQL_CMD -t -A -v ON_ERROR_STOP=1 "$@"; }
 
+# 0035 retired manual approval (approval-free sign-up). This suite keeps
+# exercising the 0021 allocator under concurrency through the 0031 approval
+# RPC, so restore that historic definition first (the migration is re-runnable).
+MIG="$(cd "$(dirname "$0")/../migrations" && pwd)"
+run -q -f "$MIG/0031_signup_resubmission_payment_retry.sql" >/dev/null
+
 ADMIN=00000000-0000-0000-0000-000000000400
 U=(00000000-0000-0000-0000-000000000401 00000000-0000-0000-0000-000000000402
    00000000-0000-0000-0000-000000000403 00000000-0000-0000-0000-000000000404

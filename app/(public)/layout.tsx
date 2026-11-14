@@ -24,7 +24,7 @@ export default async function PublicLayout({
     ? {
         participantId:
           profile.participant_id ??
-          (profile.approval_status === "rejected" ? "My application" : "Dashboard"),
+          (profile.approval_status !== "approved" ? "Finish sign-up" : "Dashboard"),
         isAdmin: showAdmin,
         showGeneralRegistration:
           isGeneralRegistrationOpen(grSettings) &&

@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { siteUrl } from "@/lib/utils";
-import { notifySignupPending } from "@/lib/email/notify";
+import { notifyWelcome } from "@/lib/email/notify";
 import {
   BUCKETS,
   ID_CARD_ACCEPTED_TYPES,
@@ -55,33 +55,25 @@ export async function signIn(_prev: AuthState, formData: FormData): Promise<Auth
     return { ok: false, error: "Invalid email or password." };
   }
 
-  // Approval gate — only approved accounts keep a session.
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("approval_status")
-    .eq("id", signInData.user.id)
-    .maybeSingle();
+  // Sign-up is approval-free (0035). A banned account keeps its session only
+  // to see the blocked notice; an incomplete profile finishes itself first.
+  const [{ data: profile }, { data: ban }] = await Promise.all([
+    supabase.from("profiles").select("approval_status").eq("id", signInData.user.id).maybeSingle(),
+    supabase.from("profile_bans").select("profile_id").eq("profile_id", signInData.user.id).maybeSingle(),
+  ]);
   const status = (profile as { approval_status?: string } | null)?.approval_status;
-  if (status === "rejected") {
-    // A rejected applicant keeps a session for one thing only: correcting and
-    // resubmitting the same application (/application; every other signed-in
-    // area redirects there).
-    revalidatePath("/", "layout");
-    redirect("/application");
-  }
-  if (status !== "approved") {
-    await supabase.auth.signOut();
-    return {
-      ok: false,
-      error:
-        "Your account is awaiting approval. You'll get an email once an organizer approves it.",
-    };
-  }
+  revalidatePath("/", "layout");
+  if (ban) redirect("/blocked");
+  if (status !== "approved") redirect("/application");
 
   const next = String(formData.get("next") ?? "/dashboard") || "/dashboard";
   revalidatePath("/", "layout");
   redirect(next.startsWith("/") ? next : "/dashboard");
 }
+
+/** Same text for a new and an already-registered email (no enumeration). */
+const SIGNUP_DONE_MESSAGE =
+  "Your account is ready — confirm your email with the link we just sent, then sign in. Your participant ID is in your welcome email.";
 
 /** Sign up + profile metadata. Profile row is created by a DB trigger. */
 export async function signUp(_prev: AuthState, formData: FormData): Promise<AuthState> {
@@ -129,39 +121,53 @@ export async function signUp(_prev: AuthState, formData: FormData): Promise<Auth
   }
 
   const userId = data.user?.id;
-  if (userId) {
-    // Upload the ID card + attach it to the profile using the service role,
-    // because the new user has no session yet.
-    try {
-      const admin = createAdminClient();
-      const buffer = Buffer.from(await idCard.arrayBuffer());
-      const ext = ID_CARD_EXT[idCard.type] ?? "png";
-      const path = `${userId}/${Date.now()}.${ext}`;
-      await admin.storage
-        .from(BUCKETS.idCards)
-        .upload(path, buffer, { contentType: idCard.type, upsert: true });
-      await admin.from("profiles").update({ id_card_path: path }).eq("id", userId);
-    } catch (e) {
-      console.error("id card upload failed:", e);
-    }
-
-    try {
-      await notifySignupPending(userId);
-    } catch (e) {
-      console.error("signup email failed:", e);
-    }
+  // An already-registered email comes back as a user without identities:
+  // never upload or attach anything to an existing account, and answer
+  // exactly like a fresh sign-up awaiting email confirmation (no account
+  // enumeration).
+  if (!userId || (data.user?.identities && data.user.identities.length === 0)) {
+    return { ok: true, message: SIGNUP_DONE_MESSAGE };
   }
 
-  // Pending users must NOT get in — drop any session Supabase created.
-  if (data.session) {
-    await supabase.auth.signOut();
+  // Approval-free sign-up (0035): attach the ID card and activate the new
+  // profile with its permanent participant ID in one database transaction.
+  // Service role, because the new user may have no session yet.
+  let participantId: string | null = null;
+  try {
+    const admin = createAdminClient();
+    const ext = ID_CARD_EXT[idCard.type] ?? "png";
+    const path = `${userId}/${Date.now()}.${ext}`;
+    const { error: upErr } = await admin.storage
+      .from(BUCKETS.idCards)
+      .upload(path, Buffer.from(await idCard.arrayBuffer()), { contentType: idCard.type, upsert: false });
+    if (upErr) throw upErr;
+    const { data: activated, error: actErr } = await admin.rpc("server_complete_signup", {
+      p_profile_id: userId,
+      p_id_card_path: path,
+    });
+    if (actErr) throw actErr;
+    participantId = (activated as { participant_id: string | null } | null)?.participant_id ?? null;
+  } catch (e) {
+    // The account exists but isn't active yet; signing in leads to
+    // /application to finish it (nothing is fabricated).
+    console.error("sign-up activation failed:", e);
+  }
+
+  if (participantId) {
+    try {
+      await notifyWelcome(userId);
+    } catch (e) {
+      console.error("welcome email failed:", e);
+    }
   }
 
   revalidatePath("/", "layout");
+  if (data.session) redirect(participantId ? "/dashboard?welcome=1" : "/application");
   return {
     ok: true,
-    message:
-      "Thanks! Your account is pending organizer approval. We'll email you as soon as it's approved — then you can sign in.",
+    message: participantId
+      ? SIGNUP_DONE_MESSAGE
+      : "Your account was created, but we couldn't finish your profile. Confirm your email, sign in and upload your college ID card again to get your participant ID.",
   };
 }
 
@@ -212,9 +218,9 @@ export async function updatePassword(
 }
 
 /**
- * A rejected applicant corrects their details and uploads a replacement
- * college ID card on the SAME account (0031 resubmit_my_application). The
- * application returns to pending; no participant ID is issued until approval.
+ * Finishes an incomplete (or legacy rejected) profile on the SAME account:
+ * corrected details plus a new college ID card. Approval-free (0035): the
+ * profile is activated and gets its permanent participant ID at once.
  */
 export async function resubmitApplication(
   _prev: AuthState,
@@ -273,19 +279,19 @@ export async function resubmitApplication(
     console.error("resubmit_my_application failed:", error);
     await admin.storage.from(BUCKETS.idCards).remove([path]);
     const m = error.message ?? "";
-    if (m.includes("APPLICATION_NOT_REJECTED"))
-      return { ok: false, error: "Your application isn't in a rejected state, so there's nothing to resubmit." };
+    if (m.includes("APPLICATION_ALREADY_ACTIVE")) redirect("/dashboard");
+    if (m.includes("ACCOUNT_BANNED")) redirect("/blocked");
     if (m.includes("INVALID_PROFILE")) return { ok: false, error: "Please check your details and try again." };
     if (m.includes("INVALID_ID_CARD")) return { ok: false, error: "Upload a new photo of your college ID card." };
-    return { ok: false, error: "Couldn't resubmit your application. Please try again." };
+    return { ok: false, error: "Couldn't save your profile. Please try again." };
   }
 
   try {
-    await notifySignupPending(user.id);
+    await notifyWelcome(user.id);
   } catch (e) {
-    console.error("resubmission email failed:", e);
+    console.error("welcome email failed:", e);
   }
   revalidatePath("/", "layout");
-  revalidatePath("/admin/approvals");
-  redirect("/pending-approval?resubmitted=1");
+  revalidatePath("/admin/users");
+  redirect("/dashboard?welcome=1");
 }

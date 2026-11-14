@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireEventArea, requireScope, requireSuperAdmin } from "@/lib/auth";
 import { parseRulesText, rulesError } from "@/lib/events/rules";
+import { parseCoordinatorsField, type EventCoordinator } from "@/lib/events/coordinators";
 import {
   eventOffersSchema,
   eventSchema,
@@ -14,14 +15,11 @@ import {
 import { parseTierRupees } from "@/lib/events/team-pricing";
 import type { PriceWindow } from "@/lib/events/price-windows";
 import {
-  notifyApproval,
   notifyPaymentRejected,
   notifyRegistrationConfirmed,
-  notifyRejection,
 } from "@/lib/email/notify";
 import {
   ADMIN_SCOPES,
-  APPROVAL_STATUSES,
   BUCKETS,
   PAYMENT_STATUSES,
   USER_ROLES,
@@ -32,7 +30,7 @@ export type AdminActionState =
   | { ok: true; message?: string }
   | null;
 
-function rowFromInput(input: EventInput) {
+function rowFromInput(input: EventInput, coordinators: EventCoordinator[]) {
   // Paragraphs separated by blank lines; line breaks inside are kept (D-022).
   const rules = parseRulesText(input.rules);
 
@@ -52,6 +50,8 @@ function rowFromInput(input: EventInput) {
         ? input.max_participants
         : null,
     rules,
+    // Public coordinator boxes (0035); the database re-validates them.
+    coordinators,
     hero_image: input.hero_image || null,
     thumbnail_image: input.thumbnail_image || null,
     registration_open: !!input.registration_open,
@@ -247,6 +247,8 @@ async function validateParent(
 /** Database refusals for events.category (0027 trigger / FK). */
 function mapCategoryAssignmentError(message: string | undefined): string | null {
   if (!message) return null;
+  if (message.includes("events_coordinators_valid"))
+    return "Check the coordinators: each needs a name and a phone number or email.";
   if (message.includes("CATEGORY_ARCHIVED"))
     return "That category is archived. Choose an active category (events already in it keep it).";
   if (message.includes("CATEGORY_NOT_FOUND") || message.includes("events_category_fkey"))
@@ -355,6 +357,8 @@ export async function createEvent(
   }
   const rulesProblem = rulesError(parseRulesText(parsed.data.rules));
   if (rulesProblem) return { ok: false, error: rulesProblem };
+  const coordinators = parseCoordinatorsField(formData.get("coordinators"));
+  if (!coordinators.ok) return { ok: false, error: coordinators.error };
 
   const offers = parseOffers(formData);
   if (!offers.ok) return offers;
@@ -370,7 +374,7 @@ export async function createEvent(
   // Created as a plain event; team settings follow through the pricing RPC.
   const { data: created, error } = await supabase
     .from("events")
-    .insert({ ...rowFromInput(parsed.data), registration_fee: pricing.pricing.registration_fee })
+    .insert({ ...rowFromInput(parsed.data, coordinators.coordinators), registration_fee: pricing.pricing.registration_fee })
     .select("id")
     .single();
   if (error || !created) {
@@ -423,6 +427,8 @@ export async function updateEvent(
   }
   const rulesProblem = rulesError(parseRulesText(parsed.data.rules));
   if (rulesProblem) return { ok: false, error: rulesProblem };
+  const coordinators = parseCoordinatorsField(formData.get("coordinators"));
+  if (!coordinators.ok) return { ok: false, error: coordinators.error };
 
   const offers = parseOffers(formData, id);
   if (!offers.ok) return offers;
@@ -454,7 +460,7 @@ export async function updateEvent(
     if (parentError) return { ok: false, error: parentError };
   }
 
-  const row = rowFromInput(parsed.data);
+  const row = rowFromInput(parsed.data, coordinators.coordinators);
   if (current.archived_at) {
     row.parent_event_id = current.parent_event_id;
     // Archived events stay closed and unfeatured until restored.
@@ -674,54 +680,6 @@ export async function setPaymentStatus(
   return { ok: true, message: "Payment status updated." };
 }
 
-/** Approve / reject a pending signup (signups scope). Emails the user. */
-export async function setApproval(formData: FormData): Promise<AdminActionState> {
-  await requireScope("signups");
-  const userId = String(formData.get("user_id") ?? "");
-  const status = String(formData.get("status") ?? "");
-  if (!userId || !APPROVAL_STATUSES.includes(status as never))
-    return { ok: false, error: "Invalid request." };
-
-  const supabase = await createClient();
-  const { error } = await supabase.rpc("admin_set_approval", {
-    p_user_id: userId,
-    p_status: status,
-  });
-  if (error) {
-    const msg = error.message ?? "";
-    if (msg.includes("PARTICIPANT_ID_SPACE_EXHAUSTED"))
-      return { ok: false, error: "No IDs are left in this participant range. Nothing was changed." };
-    if (msg.includes("FORBIDDEN"))
-      return { ok: false, error: "You don't have permission to approve sign-ups." };
-    if (msg.includes("INVALID_APPROVAL_TRANSITION"))
-      return {
-        ok: false,
-        error: "Only pending applications can be approved or rejected. Reload to see the current status.",
-      };
-    return { ok: false, error: "Could not update approval." };
-  }
-
-  if (status === "approved") {
-    try {
-      await notifyApproval(userId);
-    } catch (e) {
-      console.error("approval email failed:", e);
-    }
-  } else if (status === "rejected") {
-    try {
-      await notifyRejection(userId);
-    } catch (e) {
-      console.error("rejection email failed:", e);
-    }
-  }
-
-  revalidatePath("/admin/approvals");
-  revalidatePath(`/admin/approvals/${userId}`);
-  revalidatePath("/admin/users");
-  revalidatePath("/admin");
-  return { ok: true, message: "Approval updated." };
-}
-
 /** Super admin: set a user's role, super flag and scopes. */
 export async function setAdminAccess(formData: FormData): Promise<AdminActionState> {
   await requireSuperAdmin();
@@ -758,6 +716,49 @@ export async function setAdminAccess(formData: FormData): Promise<AdminActionSta
   return { ok: true, message: "Admin access and participant ID updated." };
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Super admin only: ban or unban an account (0035). Evidence-preserving —
+ * nothing is deleted; the database records actor, time and reason in an
+ * append-only history and re-checks super-admin authority itself.
+ */
+export async function setUserBan(
+  _prev: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  await requireSuperAdmin();
+  const userId = String(formData.get("user_id") ?? "");
+  const banned = String(formData.get("banned") ?? "");
+  const reason = String(formData.get("reason") ?? "").trim();
+  if (!UUID_RE.test(userId) || (banned !== "true" && banned !== "false"))
+    return { ok: false, error: "Invalid request." };
+  if (reason.length < 1 || reason.length > 300)
+    return { ok: false, error: "Give a reason (up to 300 characters) — it is kept in the account history." };
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("super_set_user_ban", {
+    p_user_id: userId,
+    p_banned: banned === "true",
+    p_reason: reason,
+  });
+  if (error) {
+    const m = error.message ?? "";
+    console.error("super_set_user_ban failed:", error);
+    if (m.includes("CANNOT_BAN_SELF")) return { ok: false, error: "You can't suspend your own account." };
+    if (m.includes("CANNOT_BAN_SUPER_ADMIN"))
+      return { ok: false, error: "Remove super-admin access first; super admins can't be suspended." };
+    if (m.includes("ALREADY_BANNED")) return { ok: false, error: "This account is already suspended." };
+    if (m.includes("NOT_BANNED")) return { ok: false, error: "This account isn't suspended." };
+    if (m.includes("USER_NOT_FOUND")) return { ok: false, error: "That account no longer exists." };
+    if (m.includes("FORBIDDEN")) return { ok: false, error: "Only super admins can suspend accounts." };
+    return { ok: false, error: "Could not update the suspension. Please try again." };
+  }
+  revalidatePath(`/admin/users/${userId}`);
+  revalidatePath("/admin/users");
+  return { ok: true, message: banned === "true" ? "Account suspended." : "Suspension lifted — access restored." };
+}
+
 /** Short-lived signed URL for a private payment screenshot (payments scope). */
 export async function getScreenshotSignedUrl(
   path: string,
@@ -770,7 +771,7 @@ export async function getScreenshotSignedUrl(
   return data?.signedUrl ?? null;
 }
 
-/** Short-lived signed URL for a private ID card (signups scope). */
+/** Short-lived signed URL for a private ID card (Users scope). */
 export async function getIdCardSignedUrl(path: string): Promise<string | null> {
   await requireScope("signups");
   const admin = createAdminClient();

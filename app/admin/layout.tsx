@@ -5,17 +5,12 @@ import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { hasAreaAccess, requireAdminAccess } from "@/lib/auth";
 import { signOut } from "@/lib/actions/auth";
-import { countPendingSignups } from "@/lib/data/admin";
 import { SITE } from "@/lib/constants";
 
 export default async function AdminLayout({ children }: LayoutProps<"/">) {
   // Global admins, plus accounts holding per-event assignments (0034).
   const access = await requireAdminAccess();
   const { profile } = access;
-  const pending =
-    access.isSuper || access.scopes.includes("signups")
-      ? await countPendingSignups()
-      : 0;
 
   return (
     <div className="min-h-svh bg-background">
@@ -59,7 +54,6 @@ export default async function AdminLayout({ children }: LayoutProps<"/">) {
                 events: hasAreaAccess(access, "events"),
                 payments: hasAreaAccess(access, "payments"),
               }}
-              pendingCount={pending}
             />
           </div>
         </aside>

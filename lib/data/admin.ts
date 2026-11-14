@@ -8,6 +8,8 @@ import type { PriceWindow } from "@/lib/events/price-windows";
 import type {
   EventOfferRow,
   EventRow,
+  ProfileBanEventRow,
+  ProfileBanRow,
   ProfileRow,
   RegistrationRow,
   RegistrationWithEventAndProfile,
@@ -351,25 +353,6 @@ export async function getPaymentQueue(): Promise<
   return (data as RegistrationWithEventAndProfile[]) ?? [];
 }
 
-export async function getPendingSignups(): Promise<ProfileRow[]> {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("approval_status", "pending")
-    .order("created_at", { ascending: true });
-  return (data as ProfileRow[]) ?? [];
-}
-
-export async function countPendingSignups(): Promise<number> {
-  const supabase = await createClient();
-  const { count } = await supabase
-    .from("profiles")
-    .select("*", { count: "exact", head: true })
-    .eq("approval_status", "pending");
-  return count ?? 0;
-}
-
 export async function getProfileAdmin(id: string): Promise<ProfileRow | null> {
   const supabase = await createClient();
   const { data } = await supabase
@@ -421,4 +404,44 @@ export async function getUserWithRegistrations(id: string): Promise<{
     profile: profile as ProfileRow,
     registrations: (registrations as never) ?? [],
   };
+}
+
+/**
+ * Ban state and append-only history of one account (0035). Readable by
+ * Users-scope admins (RLS); only super admins can change it.
+ */
+export async function getUserBanState(profileId: string): Promise<{
+  current: ProfileBanRow | null;
+  history: ProfileBanEventRow[];
+}> {
+  const supabase = await createClient();
+  const [cur, hist] = await Promise.all([
+    supabase.from("profile_bans").select("*").eq("profile_id", profileId).maybeSingle(),
+    supabase
+      .from("profile_ban_events")
+      .select("*")
+      .eq("profile_id", profileId)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(50),
+  ]);
+  if (cur.error) throw queryError("profile_bans", cur.error);
+  if (hist.error) throw queryError("profile_ban_events", hist.error);
+  return {
+    current: (cur.data as ProfileBanRow | null) ?? null,
+    history: (hist.data as ProfileBanEventRow[] | null) ?? [],
+  };
+}
+
+/** Display names of a few accounts (e.g. who suspended someone). */
+export async function getProfileNames(ids: string[]): Promise<Map<string, string>> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("profiles").select("id, full_name, participant_id").in("id", ids);
+  if (error) throw queryError("profile names", error);
+  return new Map(
+    ((data as Pick<ProfileRow, "id" | "full_name" | "participant_id">[] | null) ?? []).map((p) => [
+      p.id,
+      p.full_name || p.participant_id || "Admin",
+    ]),
+  );
 }

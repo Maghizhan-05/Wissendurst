@@ -1,6 +1,7 @@
 import { formatEventDate, formatINR, formatTime, siteUrl } from "@/lib/utils";
 import type { EventRow } from "@/types/database";
 import { whatsappGroupEmailBlock } from "./whatsapp";
+import { googleFormEmailBlock } from "./google-form";
 
 /** Shared branded shell for all transactional emails (email-client safe). */
 function shell(heading: string, bodyHtml: string, cta?: { label: string; href: string }): string {
@@ -43,40 +44,6 @@ function teamRow(teamName: string | null | undefined): string {
 
 function pid(participantId: string): string {
   return `<span style="font-family:monospace;background:#ecf6f4;border:1px solid #d5e5e2;border-radius:6px;padding:2px 8px;color:#087f78;font-weight:700;">${participantId}</span>`;
-}
-
-export function signupPendingEmail(name: string) {
-  return {
-    subject: "We received your Wissendurst'27 sign-up",
-    html: shell(
-      `Thanks, ${name || "there"} 👋`,
-      `<p style="line-height:1.6;">Your account and ID card have been received and are now waiting for an organizer to approve.</p>
-       <p style="line-height:1.6;color:#627775;">You'll get another email the moment you're approved — then you can sign in and start registering for events.</p>`,
-    ),
-  };
-}
-
-export function approvalGrantedEmail(name: string, participantId: string) {
-  return {
-    subject: "You're approved — welcome to Wissendurst'27 ✅",
-    html: shell(
-      `You're in, ${name || "there"}! 🎉`,
-      `<p style="line-height:1.6;">An organizer has approved your account. You can now sign in. Your participant ID is ${pid(participantId)} — keep it handy for every event and payment.</p>`,
-      { label: "Sign in", href: siteUrl("/login") },
-    ),
-  };
-}
-
-export function approvalRejectedEmail(name: string) {
-  return {
-    subject: "Update on your Wissendurst'27 sign-up",
-    html: shell(
-      `Hi ${name || "there"}`,
-      `<p style="line-height:1.6;">We're sorry — your sign-up couldn't be approved as submitted. This is often an unreadable or mismatched ID card, or details that don't match it.</p>
-       <p style="line-height:1.6;color:#627775;">Sign in with the same email and password to correct your details, upload a new photo of your college ID card and resubmit. An organizer will review it again.</p>`,
-      { label: "Correct and resubmit", href: siteUrl("/login?next=/application") },
-    ),
-  };
 }
 
 export function welcomeEmail(name: string, participantId: string) {
@@ -177,6 +144,8 @@ export function paymentConfirmedEmail(
   teamName?: string | null,
   /** Private event WhatsApp group (0034). */
   whatsappUrl?: string | null,
+  /** Private event Google Form (0035, D-023): paid confirmations only. */
+  googleFormUrl?: string | null,
 ) {
   const when = `${formatEventDate(event.event_date)}${
     event.start_time ? ` · ${formatTime(event.start_time)}` : ""
@@ -192,6 +161,7 @@ export function paymentConfirmedEmail(
          <tr><td style="padding:6px 0;color:#627775;">Venue</td><td style="padding:6px 0;text-align:right;">${event.venue ?? "TBA"}</td></tr>
          ${teamRow(teamName)}
        </table>
+       ${googleFormEmailBlock(googleFormUrl)}
        ${whatsappGroupEmailBlock(whatsappUrl)}
        <p style="line-height:1.6;color:#627775;">See you there!</p>`,
       { label: "View my events", href: siteUrl("/dashboard/registrations") },

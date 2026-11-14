@@ -56,7 +56,7 @@ export default async function GeneralRegistrationPage() {
             </h2>
             {!profile ? (
               <Panel>
-                <p className="text-sm text-muted">Sign in with your approved account to take General Registration.</p>
+                <p className="text-sm text-muted">Sign in to take General Registration.</p>
                 <div className="mt-4 flex flex-wrap gap-3">
                   <ButtonLink href="/login?next=/general-registration" withArrow>
                     Sign in
@@ -67,8 +67,12 @@ export default async function GeneralRegistrationPage() {
                 </div>
               </Panel>
             ) : profile.approval_status !== "approved" ? (
-              <Panel tone="warning" icon={<CircleAlert className="size-5" />} title="Waiting for approval">
-                Your account must be approved before you can take General Registration.
+              <Panel tone="warning" icon={<CircleAlert className="size-5" />} title="Finish your sign-up first">
+                Upload your college ID card on{" "}
+                <Link href="/application" className="font-medium text-brand hover:underline">
+                  your profile
+                </Link>{" "}
+                to get your participant ID, then take General Registration.
               </Panel>
             ) : verified ? (
               <Panel tone="success" icon={<BadgeCheck className="size-5" />} title="General Registration verified">
@@ -83,7 +87,7 @@ export default async function GeneralRegistrationPage() {
               <GrPayment gr={gr} participantId={profile.participant_id ?? ""} instructions={settings.instructions} />
             ) : !canTakeGeneralRegistration(profile.participant_id, profile.approval_status) ? (
               <Panel tone="warning" icon={<CircleAlert className="size-5" />} title="Not available for this account">
-                General Registration needs an approved standard participant ID.
+                General Registration needs an active standard participant ID (W27/E/…).
               </Panel>
             ) : !open ? (
               <Panel icon={<Info className="size-5" />} title="Not open yet">

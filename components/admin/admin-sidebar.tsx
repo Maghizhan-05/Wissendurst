@@ -9,7 +9,6 @@ import {
   ClipboardList,
   BadgeIndianRupee,
   LayoutTemplate,
-  UserCheck,
   TrendingUp,
   Ticket,
 } from "lucide-react";
@@ -31,19 +30,16 @@ export function AdminSidebar({
   scopes,
   isSuper,
   eventAreas = { events: false, payments: false },
-  pendingCount = 0,
 }: {
   scopes: AdminScope[];
   isSuper: boolean;
   /** Global scope OR an event assignment grants the area (0034). */
   eventAreas?: Record<EventPermission, boolean>;
-  pendingCount?: number;
 }) {
   const pathname = usePathname();
 
   const links: NavLink[] = [
     { href: "/admin", label: "Overview", icon: LayoutDashboard, exact: true },
-    { href: "/admin/approvals", label: "Approvals", icon: UserCheck, scope: "signups", badge: pendingCount },
     { href: "/admin/events", label: "Events", icon: CalendarCog, scope: "events", eventArea: "events" },
     { href: "/admin/registrations", label: "Registrations", icon: ClipboardList, scope: "events", eventArea: "events" },
     { href: "/admin/payments", label: "Payments", icon: BadgeIndianRupee, scope: "payments", eventArea: "payments" },

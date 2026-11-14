@@ -13,6 +13,12 @@ pass() { echo "PASS $1"; }
 fail() { echo "FAIL: $1"; exit 1; }
 u() { printf '00000000-0000-0000-0000-0000000032%02d' "$1"; }
 
+# 0035 retired manual approval (approval-free sign-up). This suite keeps
+# exercising the historic 0031 approval/rejection races, so restore those
+# definitions first (the migration is re-runnable).
+MIG="$(cd "$(dirname "$0")/../migrations" && pwd)"
+run -q -f "$MIG/0031_signup_resubmission_payment_retry.sql" >/dev/null
+
 run >/dev/null -c "grant all on all tables in schema public to anon, authenticated, service_role"
 run >/dev/null <<SQL
 insert into auth.users (id, email) select ('00000000-0000-0000-0000-0000000032' || lpad(n::text, 2, '0'))::uuid, 'k'||n||'@x.test' from generate_series(0, 9) n;

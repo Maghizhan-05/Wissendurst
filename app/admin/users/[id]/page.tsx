@@ -6,14 +6,19 @@ import { Badge, PaymentBadge, RegistrationBadge } from "@/components/ui/badge";
 import { AdminAccessForm } from "@/components/admin/admin-access-form";
 import { EventAdminAccessEditor } from "@/components/admin/event-admin-access-editor";
 import { getAssignableEvents, getAssignmentsOfUser, getEventsByIds } from "@/lib/data/event-admin";
-import { ApprovalActions } from "@/components/admin/approval-actions";
+import { UserBanForm } from "@/components/admin/user-ban-form";
 import { EmptyState } from "@/components/ui/misc";
-import { getUserWithRegistrations } from "@/lib/data/admin";
+import { getProfileNames, getUserBanState, getUserWithRegistrations } from "@/lib/data/admin";
 import { requireScope } from "@/lib/auth";
 import { ADMIN_SCOPE_LABELS, APPROVAL_STATUS_LABELS } from "@/lib/constants";
 import { formatEventDate } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Admin · User" };
+
+const formatDateTime = (iso: string) =>
+  new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kolkata" }).format(
+    new Date(iso),
+  );
 
 export default async function AdminUserPage({
   params,
@@ -23,6 +28,9 @@ export default async function AdminUserPage({
   const data = await getUserWithRegistrations(id);
   if (!data) notFound();
   const { profile, registrations } = data;
+  const ban = await getUserBanState(profile.id);
+  const actorIds = [...new Set(ban.history.map((h) => h.actor).filter((a): a is string => a != null))];
+  const actors = actorIds.length ? await getProfileNames(actorIds) : new Map<string, string>();
 
   // Super admin only: per-event administration of this account (0034).
   const eventAccess = viewer.is_super_admin ? await loadEventAccess(profile.id) : null;
@@ -55,13 +63,14 @@ export default async function AdminUserPage({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="font-mono text-sm text-brand">
-              {profile.participant_id ?? "Pending approval"}
+              {profile.participant_id ?? "No participant ID yet"}
             </p>
             <h1 className="mt-1 font-display text-2xl font-semibold text-foreground">
               {profile.full_name || "Unnamed participant"}
             </h1>
           </div>
           <div className="flex flex-col items-end gap-2">
+            {ban.current && <Badge tone="alert">Suspended</Badge>}
             <Badge tone={approvalTone}>
               {APPROVAL_STATUS_LABELS[profile.approval_status]}
             </Badge>
@@ -79,12 +88,16 @@ export default async function AdminUserPage({
           </div>
         </div>
 
-        {profile.approval_status === "pending" && (
-          <div className="mt-5 rounded-xl border border-warning/30 bg-warning/10 p-4">
-            <p className="mb-2 text-sm font-medium text-foreground">
-              This account is awaiting approval
-            </p>
-            <ApprovalActions userId={profile.id} compact />
+        {profile.approval_status !== "approved" && (
+          <div className="mt-5 rounded-xl border border-warning/30 bg-warning/10 p-4 text-sm text-foreground">
+            This account hasn&rsquo;t finished signing up (college ID card or details missing). It
+            gets its participant ID automatically once the owner completes it — no approval needed.
+          </div>
+        )}
+        {ban.current && (
+          <div className="mt-5 rounded-xl border border-alert/30 bg-alert/10 p-4 text-sm text-foreground">
+            <p className="font-medium">Suspended {formatDateTime(ban.current.banned_at)}</p>
+            <p className="mt-1 whitespace-pre-line break-words text-muted">{ban.current.reason}</p>
           </div>
         )}
 
@@ -143,9 +156,46 @@ export default async function AdminUserPage({
                 assignable={eventAccess.assignable}
               />
             ) : (
-              <p className="text-sm text-muted">Only approved accounts can administer events.</p>
+              <p className="text-sm text-muted">Only active accounts (sign-up complete) can administer events.</p>
             )}
           </div>
+        </div>
+      )}
+
+      {(viewer.is_super_admin || ban.history.length > 0) && (
+        <div className="rounded-2xl border border-border bg-surface p-6">
+          <h2 className="font-display text-lg font-semibold text-foreground">Suspension</h2>
+          <p className="mt-1 text-sm text-muted">
+            A suspended account can&rsquo;t register, pay or change its profile and sees a
+            &ldquo;suspended&rdquo; page. Nothing is deleted: the profile, participant ID,
+            registrations, teams and payments stay as they are, and lifting the suspension restores
+            access with the same identity.
+          </p>
+          {viewer.is_super_admin &&
+            (profile.role === "admin" && profile.is_super_admin ? (
+              <p className="mt-4 text-sm text-muted">Super admins can&rsquo;t be suspended.</p>
+            ) : profile.id === viewer.id ? null : (
+              <div className="mt-4 max-w-md">
+                <UserBanForm key={ban.current ? "banned" : "active"} userId={profile.id} banned={ban.current != null} />
+              </div>
+            ))}
+          {ban.history.length > 0 && (
+            <ol className="mt-6 space-y-3 border-t border-border pt-4">
+              {ban.history.map((h) => (
+                <li key={h.id} className="text-sm">
+                  <p className="text-foreground">
+                    <span className={h.action === "ban" ? "font-medium text-alert" : "font-medium text-success"}>
+                      {h.action === "ban" ? "Suspended" : "Restored"}
+                    </span>{" "}
+                    <span className="text-muted">
+                      {formatDateTime(h.created_at)} · {h.actor ? (actors.get(h.actor) ?? "Super admin") : "System"}
+                    </span>
+                  </p>
+                  <p className="mt-0.5 whitespace-pre-line break-words text-muted">{h.reason}</p>
+                </li>
+              ))}
+            </ol>
+          )}
         </div>
       )}
 

@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Field, Input, Textarea } from "@/components/ui/field";
 import { rulesToEditorText } from "@/lib/events/rules";
 import { RULES_HINT, RULES_PLACEHOLDER } from "@/components/admin/rules-guidance";
+import { CoordinatorsEditor } from "@/components/admin/coordinators-editor";
+import { coordinatorsToDrafts } from "@/lib/events/coordinators";
 import { updateEventDetails } from "@/lib/actions/event-admin";
 import type { AdminActionState } from "@/lib/actions/admin";
 import type { EventRow } from "@/types/database";
@@ -68,6 +70,8 @@ export function EventDetailsForm({ event }: { event: EventRow }) {
           <Input id="end_time" name="end_time" type="time" defaultValue={event.end_time?.slice(0, 5) ?? ""} />
         </Field>
       </div>
+
+      <CoordinatorsEditor initial={coordinatorsToDrafts(event.coordinators)} />
 
       <p className="text-xs text-muted">
         Title, category, fees, capacity, team settings and visibility are managed by the

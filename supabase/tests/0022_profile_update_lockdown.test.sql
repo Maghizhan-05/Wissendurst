@@ -131,8 +131,9 @@ select pg_temp.check((select id_card_path = '00000000-0000-0000-0000-00000000070
                       where id = '00000000-0000-0000-0000-000000000701'), '5: service role can record the signup ID card');
 set role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000000703', false);
-select public.admin_set_approval('00000000-0000-0000-0000-000000000701', 'approved');
+-- 0035: manual approval is retired (sign-up activates itself; see 0035 tests).
+select pg_temp.expect_error($q$select public.admin_set_approval('00000000-0000-0000-0000-000000000701', 'approved')$q$, 'APPROVAL_RETIRED');
 reset role;
-select pg_temp.check((select approval_status = 'approved' and participant_id like 'W27/E/%' from public.profiles
-                      where id = '00000000-0000-0000-0000-000000000701'), '5: signups admin approval still works (and allocates an E id)');
+select pg_temp.check((select approval_status = 'pending' and participant_id is null from public.profiles
+                      where id = '00000000-0000-0000-0000-000000000701'), '5: retired approval changes nothing');
 select 'ALL 0022 TESTS PASSED';

@@ -11,6 +11,8 @@ export type ActionResult = { ok: false; error: string } | { ok: true };
 
 const RPC_ERRORS: Record<string, string> = {
   AUTH_REQUIRED: "Please sign in to register.",
+  ACCOUNT_BANNED: "Your account is suspended, so you can't register.",
+  MEMBER_BANNED: "One of the teammates can't be registered right now.",
   EVENT_NOT_FOUND: "That event no longer exists.",
   EVENT_ARCHIVED: "This event has been archived and is no longer accepting registrations.",
   HAS_SUBEVENTS: "Pick one of the sub-events to register for.",
@@ -25,7 +27,7 @@ const RPC_ERRORS: Record<string, string> = {
   TEAM_TOO_SMALL: "Your team has fewer members than this event allows.",
   TEAM_TOO_LARGE: "Your team has more members than this event allows.",
   MEMBER_NOT_APPROVED:
-    "One of the teammates isn't an approved participant yet.",
+    "One of the teammates hasn't finished signing up yet.",
   MEMBER_ALREADY_REGISTERED:
     "You or a teammate is already registered for this event.",
   TEAM_NAME_REQUIRED: "Give your team a name (1–60 characters).",
@@ -166,7 +168,16 @@ export async function lookupTeamMember(
     | null;
   if (!p) return { ok: false, error: `No participant found with ID ${pid}.` };
   if (p.approval_status !== "approved")
-    return { ok: false, error: `${pid} isn't an approved participant yet.` };
+    return { ok: false, error: `${pid} hasn't finished signing up yet.` };
+  // Suspended accounts can't be enrolled (the database refuses it too).
+  const { data: memberBan } = await admin
+    .from("profile_bans")
+    .select("profile_id")
+    .in("profile_id", [p.id, user.id]);
+  if ((memberBan ?? []).some((b) => (b as { profile_id: string }).profile_id === user.id))
+    return { ok: false, error: RPC_ERRORS.ACCOUNT_BANNED };
+  if ((memberBan ?? []).length > 0)
+    return { ok: false, error: `${pid} can't be added to a team right now.` };
 
   // Editing: the team is resolved through the caller's own head row (RLS).
   let excludeTeamId: string | null = null;

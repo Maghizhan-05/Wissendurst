@@ -14,9 +14,10 @@ import {
 } from "@/lib/data/admin";
 import { canOnEvent, hasGlobalScope, requireEventArea } from "@/lib/auth";
 import { getEventCategories } from "@/lib/data/event-categories";
-import { getEventForAssignee, getEventWhatsAppLink } from "@/lib/data/event-admin";
+import { getEventForAssignee, getEventGoogleFormLink, getEventWhatsAppLink } from "@/lib/data/event-admin";
 import { EventDetailsForm } from "@/components/admin/event-details-form";
 import { EventWhatsAppForm } from "@/components/admin/event-whatsapp-form";
+import { EventGoogleFormForm } from "@/components/admin/event-google-form-form";
 
 export const metadata: Metadata = { title: "Admin · Edit event" };
 
@@ -32,7 +33,7 @@ export default async function EditEventPage({
     // Event administrator (0034): descriptive details + private WhatsApp link.
     const assigned = await getEventForAssignee(id);
     if (!assigned) notFound();
-    const whatsappUrl = await getEventWhatsAppLink(id);
+    const [whatsappUrl, googleFormUrl] = await Promise.all([getEventWhatsAppLink(id), getEventGoogleFormLink(id)]);
     return (
       <div className="mx-auto max-w-3xl">
         <Link
@@ -48,6 +49,7 @@ export default async function EditEventPage({
         <div className="mt-8 space-y-8">
           <EventDetailsForm event={assigned} />
           <EventWhatsAppForm eventId={assigned.id} initialUrl={whatsappUrl} />
+          <EventGoogleFormForm eventId={assigned.id} initialUrl={googleFormUrl} />
         </div>
       </div>
     );
@@ -56,7 +58,7 @@ export default async function EditEventPage({
   const event = await getEventByIdAdmin(id);
   if (!event) notFound();
 
-  const [parents, offers, offerTargets, currentParent, categories, teamPrices, priceWindows, whatsappUrl] = await Promise.all([
+  const [parents, offers, offerTargets, currentParent, categories, teamPrices, priceWindows, whatsappUrl, googleFormUrl] = await Promise.all([
     getParentEventOptions(id),
     getEventOffersForSource(id),
     getOfferTargetOptions(id),
@@ -65,6 +67,7 @@ export default async function EditEventPage({
     getEventTeamPrices(id),
     getEventPriceWindows(id),
     getEventWhatsAppLink(id),
+    getEventGoogleFormLink(id),
   ]);
   // Archived events keep their parent (it may itself be archived and is then
   // not a selectable option); the form submits it unchanged.
@@ -111,8 +114,9 @@ export default async function EditEventPage({
           offerTargets={offerTargets}
         />
       </div>
-      <div className="mt-10">
+      <div className="mt-10 space-y-8">
         <EventWhatsAppForm eventId={event.id} initialUrl={whatsappUrl} />
+        <EventGoogleFormForm eventId={event.id} initialUrl={googleFormUrl} />
       </div>
     </div>
   );

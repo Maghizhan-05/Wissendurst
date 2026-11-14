@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { profileSchema } from "@/lib/validation/auth";
+import { isBanned } from "@/lib/auth";
 
 export type ProfileState =
   | { ok: false; error: string }
@@ -31,6 +32,7 @@ export async function updateProfile(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Not signed in." };
+  if (await isBanned(user.id)) return { ok: false, error: "Your account is suspended." };
 
   // Narrow RPC: participants can only change these five fields (0022).
   const { error } = await supabase.rpc("update_my_profile", {
@@ -63,6 +65,7 @@ export async function saveProfilePhoto(objectPath: string): Promise<ProfileState
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Not signed in." };
+  if (await isBanned(user.id)) return { ok: false, error: "Your account is suspended." };
 
   // The RPC accepts only an uploaded object in the caller's own folder.
   const { error } = await supabase.rpc("set_my_profile_photo", { p_path: objectPath });

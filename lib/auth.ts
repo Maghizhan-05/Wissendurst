@@ -53,21 +53,41 @@ export async function requireUser() {
   return user;
 }
 
-/** Requires an approved profile; redirects otherwise. */
-export async function requireProfile(): Promise<ProfileRow> {
+/**
+ * Whether the signed-in account is banned (0035). RLS lets an account read
+ * its own ban row. A failed lookup throws (error boundary) rather than
+ * guessing; the database enforces bans independently.
+ */
+export async function isBanned(profileId: string): Promise<boolean> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("profile_bans")
+    .select("profile_id")
+    .eq("profile_id", profileId)
+    .maybeSingle();
+  if (error) throw queryError("profile_bans", error);
+  return data != null;
+}
+
+/** Ban state of the current account, plus its active profile, for gating. */
+async function requireActiveAccount(loginNext: string): Promise<ProfileRow> {
   const profile = await getProfile();
-  if (!profile) redirect("/login");
-  if (profile.approval_status === "rejected") redirect("/application");
-  if (profile.approval_status !== "approved") redirect("/pending-approval");
+  if (!profile) redirect(loginNext);
+  if (await isBanned(profile.id)) redirect("/blocked");
+  // Approval-free sign-up (0035): an inactive profile only lacks its own
+  // sign-up details/ID card and finishes them on /application.
+  if (profile.approval_status !== "approved") redirect("/application");
   return profile;
 }
 
-/** Requires an approved admin (super or scoped); redirects non-admins home. */
+/** Requires an active (not banned, sign-up complete) profile; redirects otherwise. */
+export async function requireProfile(): Promise<ProfileRow> {
+  return requireActiveAccount("/login");
+}
+
+/** Requires an active admin (super or scoped); redirects non-admins home. */
 export async function requireAdmin(): Promise<ProfileRow> {
-  const profile = await getProfile();
-  if (!profile) redirect("/login?next=/admin");
-  if (profile.approval_status === "rejected") redirect("/application");
-  if (profile.approval_status !== "approved") redirect("/pending-approval");
+  const profile = await requireActiveAccount("/login?next=/admin");
   if (profile.role !== "admin") redirect("/");
   return profile;
 }
@@ -114,6 +134,7 @@ async function loadAssignments(profileId: string): Promise<EventAssignment[]> {
 export const getAdminAccess = cache(async (): Promise<AdminAccess | null> => {
   const profile = await getProfile();
   if (!profile || profile.approval_status !== "approved") return null;
+  if (await isBanned(profile.id)) return null; // banned: no admin power (0035)
   const isAdmin = profile.role === "admin";
   return {
     profile,
@@ -130,8 +151,9 @@ export const getAdminAccess = cache(async (): Promise<AdminAccess | null> => {
  */
 export async function canOpenAdmin(profile: ProfileRow | null): Promise<boolean> {
   if (!profile || profile.approval_status !== "approved") return false;
-  if (profile.role === "admin") return true;
   try {
+    if (await isBanned(profile.id)) return false;
+    if (profile.role === "admin") return true;
     return (await loadAssignments(profile.id)).length > 0;
   } catch (e) {
     console.error("event admin lookup failed:", e);
@@ -180,10 +202,7 @@ export function eventIdsWith(
  * event assignment. Everyone else is redirected exactly as before.
  */
 export async function requireAdminAccess(): Promise<AdminAccess> {
-  const profile = await getProfile();
-  if (!profile) redirect("/login?next=/admin");
-  if (profile.approval_status === "rejected") redirect("/application");
-  if (profile.approval_status !== "approved") redirect("/pending-approval");
+  await requireActiveAccount("/login?next=/admin");
   const access = await getAdminAccess();
   if (!access || (!access.isAdmin && access.assignments.length === 0)) redirect("/");
   return access;

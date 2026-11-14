@@ -6,6 +6,8 @@ import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { slugify } from "@/lib/utils";
 import { rulesToEditorText } from "@/lib/events/rules";
 import { RULES_HINT, RULES_PLACEHOLDER } from "@/components/admin/rules-guidance";
+import { CoordinatorsEditor } from "@/components/admin/coordinators-editor";
+import { coordinatorsToDrafts } from "@/lib/events/coordinators";
 import { activeCategories, type EventCategoryInfo } from "@/lib/events/categories";
 import type { AdminActionState } from "@/lib/actions/admin";
 import type { OfferTargetOption } from "@/lib/data/admin";
@@ -267,6 +269,8 @@ export function EventForm({
       />
 
       <PriceWindowsEditor initial={priceWindows} />
+
+      <CoordinatorsEditor initial={coordinatorsToDrafts(event?.coordinators)} />
 
       <EventOffersEditor initialOffers={offers} targets={offerTargets} />
 

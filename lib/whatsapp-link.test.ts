@@ -62,10 +62,10 @@ test("only the successful-registration emails can carry the link", () => {
   assert.equal(templates.match(/whatsappGroupEmailBlock\(/g)?.length, 2);
   assert.match(templates, /\$\{paid \? whatsappGroupEmailBlock\(whatsappUrl\) : ""\}/);
   const notify = read("lib/email/notify.ts");
-  assert.equal(notify.match(/loadEventWhatsAppUrl\(/g)?.length, 2, "defined once, used once");
+  assert.equal(notify.match(/loadEventPrivateLinks\(/g)?.length, 2, "defined once, used once (0035 rename)");
   const confirmed = notify.slice(notify.indexOf("export async function notifyRegistrationConfirmed("));
   const body = confirmed.slice(0, confirmed.indexOf("\nexport "));
-  assert.match(body, /loadEventWhatsAppUrl\(data\.event\.id\)/);
+  assert.match(body, /loadEventPrivateLinks\(data\.event\.id\)/);
   assert.match(body, /registration_status !== "confirmed"\) return;/);
 });
 

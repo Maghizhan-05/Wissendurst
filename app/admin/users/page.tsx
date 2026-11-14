@@ -54,7 +54,7 @@ export default async function AdminUsersPage({
                 <tr key={u.id} className="bg-surface hover:bg-surface-2/40">
                   <td className="px-4 py-3 font-mono text-xs text-brand">
                     {u.participant_id ?? (
-                      <span className="text-muted">Pending approval</span>
+                      <span className="text-muted">No ID yet</span>
                     )}
                   </td>
                   <td className="px-4 py-3">

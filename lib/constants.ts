@@ -35,10 +35,16 @@ export type UserRole = (typeof USER_ROLES)[number];
 export const APPROVAL_STATUSES = ["pending", "approved", "rejected"] as const;
 export type ApprovalStatus = (typeof APPROVAL_STATUSES)[number];
 
+/**
+ * Account activation state. Sign-up is approval-free since 0035: "approved"
+ * means active (participant ID issued); "pending" is a profile that hasn't
+ * finished sign-up (no ID card yet); "rejected" exists only on legacy
+ * accounts until their owner resubmits.
+ */
 export const APPROVAL_STATUS_LABELS: Record<ApprovalStatus, string> = {
-  pending: "Pending approval",
-  approved: "Approved",
-  rejected: "Rejected",
+  pending: "Profile incomplete",
+  approved: "Active",
+  rejected: "Resubmission needed",
 };
 
 /** Granular admin permission areas. A super admin implicitly has all. */
@@ -46,7 +52,7 @@ export const ADMIN_SCOPES = ["signups", "events", "payments", "content"] as cons
 export type AdminScope = (typeof ADMIN_SCOPES)[number];
 
 export const ADMIN_SCOPE_LABELS: Record<AdminScope, string> = {
-  signups: "Sign-up approvals",
+  signups: "Users (directory & profiles)",
   events: "Events & registrations",
   payments: "Payment approvals",
   content: "Site content & appearance",

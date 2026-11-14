@@ -3,6 +3,7 @@
  * supabase/migrations. Kept in sync manually (this project does not run
  * `supabase gen types`). Money is stored as INTEGER PAISE everywhere.
  */
+import type { EventCoordinator } from "@/lib/events/coordinators";
 import type {
   AdminScope,
   ApprovalStatus,
@@ -61,6 +62,8 @@ export interface EventRow {
   hero_image: string | null;
   thumbnail_image: string | null;
   rules: string[]; // jsonb array of rule paragraphs (D-022; may contain \n)
+  /** Public coordinator contact boxes (0035; validated jsonb, max 10). */
+  coordinators: EventCoordinator[];
   eligibility: string | null;
   registration_fee: number; // paise
   venue: string | null;
@@ -87,6 +90,27 @@ export interface EventRow {
   general_registration_covered: boolean;
   created_at: string;
   updated_at: string;
+}
+
+/**
+ * Current ban of an account (0035). Exists only while banned; written only by
+ * super_set_user_ban. Readable by the account itself and Users-scope admins.
+ */
+export interface ProfileBanRow {
+  profile_id: string;
+  banned_at: string;
+  banned_by: string | null;
+  reason: string;
+}
+
+/** Append-only ban/unban history (0035). */
+export interface ProfileBanEventRow {
+  id: number;
+  profile_id: string;
+  action: "ban" | "unban";
+  actor: string | null;
+  reason: string;
+  created_at: string;
 }
 
 /**

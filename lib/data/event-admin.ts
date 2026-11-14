@@ -284,3 +284,13 @@ export async function getEventForAssignee(id: string): Promise<EventRow | null> 
   if (error) throw queryError("getEventForAssignee", error);
   return (data as EventRow) ?? null;
 }
+
+/** The event's private Google Form link (0035) through the permission-checked RPC. */
+export async function getEventGoogleFormLink(eventId: string): Promise<string | null> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("admin_get_event_google_form_link", {
+    p_event_id: eventId,
+  });
+  if (error) throw queryError("admin_get_event_google_form_link", error);
+  return typeof data === "string" ? data : null;
+}

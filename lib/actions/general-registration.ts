@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { paymentVerificationService } from "@/lib/ocr";
-import { requireScope } from "@/lib/auth";
+import { isBanned, requireScope } from "@/lib/auth";
 import { defaultUpiId } from "@/lib/payment";
 import { getDefaultEventUpiId } from "@/lib/data/payment-settings";
 import {
@@ -12,7 +12,7 @@ import {
   SCREENSHOT_MAX_BYTES,
   type PaymentStatus,
 } from "@/lib/constants";
-import { mapGrError, sameUpi, UPI_ID_PATTERN } from "@/lib/general-registration";
+import { GR_ERRORS, mapGrError, sameUpi, UPI_ID_PATTERN } from "@/lib/general-registration";
 import {
   notifyGeneralRegistrationRejected,
   notifyGeneralRegistrationSubmitted,
@@ -58,6 +58,7 @@ export async function analyzeGeneralScreenshot(formData: FormData): Promise<Anal
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Please sign in again." };
+  if (await isBanned(user.id)) return { ok: false, error: GR_ERRORS.ACCOUNT_BANNED };
 
   const { data: gr } = await supabase
     .from("general_registrations")

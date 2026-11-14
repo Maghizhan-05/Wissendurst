@@ -2,16 +2,13 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sendMail } from "./mailer";
 import {
-  approvalGrantedEmail,
   generalRegistrationRejectedEmail,
   generalRegistrationSubmittedEmail,
   generalRegistrationVerifiedEmail,
-  approvalRejectedEmail,
   paymentConfirmedEmail,
   paymentRejectedEmail,
   paymentUnderReviewEmail,
   registrationEmail,
-  signupPendingEmail,
   welcomeEmail,
 } from "./templates";
 import type {
@@ -72,43 +69,26 @@ export async function notifyWelcome(userId: string): Promise<void> {
   await sendMail({ to: p.email, subject, html });
 }
 
-export async function notifySignupPending(userId: string): Promise<void> {
-  const p = await loadProfile(userId);
-  if (!p) return;
-  const { subject, html } = signupPendingEmail(p.full_name);
-  await sendMail({ to: p.email, subject, html });
-}
-
-export async function notifyApproval(userId: string): Promise<void> {
-  const p = await loadProfile(userId);
-  if (!p) return;
-  const { subject, html } = approvalGrantedEmail(p.full_name, p.participant_id ?? "");
-  await sendMail({ to: p.email, subject, html });
-}
-
-export async function notifyRejection(userId: string): Promise<void> {
-  const p = await loadProfile(userId);
-  if (!p) return;
-  const { subject, html } = approvalRejectedEmail(p.full_name);
-  await sendMail({ to: p.email, subject, html });
-}
-
 /**
- * The event's private WhatsApp group link (server-only table, 0034). A failed
- * lookup is logged and the confirmation still goes out without the link.
+ * The event's private links (server-only table): WhatsApp group (0034) and
+ * Google Form (0035). A failed lookup is logged and the confirmation still
+ * goes out without them.
  */
-async function loadEventWhatsAppUrl(eventId: string): Promise<string | null> {
+async function loadEventPrivateLinks(
+  eventId: string,
+): Promise<{ whatsappUrl: string | null; googleFormUrl: string | null }> {
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("event_private_settings")
-    .select("whatsapp_group_url")
+    .select("whatsapp_group_url, google_form_url")
     .eq("event_id", eventId)
     .maybeSingle();
   if (error) {
-    console.error("notify: event WhatsApp link lookup failed:", error);
-    return null;
+    console.error("notify: event private links lookup failed:", error);
+    return { whatsappUrl: null, googleFormUrl: null };
   }
-  return (data as { whatsapp_group_url: string | null } | null)?.whatsapp_group_url ?? null;
+  const row = data as { whatsapp_group_url: string | null; google_form_url: string | null } | null;
+  return { whatsappUrl: row?.whatsapp_group_url ?? null, googleFormUrl: row?.google_form_url ?? null };
 }
 
 /**
@@ -150,9 +130,10 @@ export async function notifyRegistrationConfirmed(
     }
   }
 
-  // Private event WhatsApp group (0034): only in this successful-registration
-  // email, to each confirmed participant / team member.
-  const whatsappUrl = await loadEventWhatsAppUrl(data.event.id);
+  // Private event links, only in this successful-registration email, to each
+  // confirmed participant / team member: the WhatsApp group (0034) always,
+  // the Google Form (0035, D-023) only in the PAID payment-confirmed email.
+  const { whatsappUrl, googleFormUrl } = await loadEventPrivateLinks(data.event.id);
 
   for (const profileId of recipientIds) {
     const p =
@@ -161,7 +142,7 @@ export async function notifyRegistrationConfirmed(
     const { subject, html } =
       teamAmount === 0
         ? registrationEmail(p.full_name, p.participant_id ?? "", data.event, 0, teamName, whatsappUrl)
-        : paymentConfirmedEmail(p.full_name, data.event, teamName, whatsappUrl);
+        : paymentConfirmedEmail(p.full_name, data.event, teamName, whatsappUrl, googleFormUrl);
     try {
       await sendMail({ to: p.email, subject, html });
     } catch (e) {

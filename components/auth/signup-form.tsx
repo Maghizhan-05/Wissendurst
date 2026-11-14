@@ -31,7 +31,7 @@ export function SignupForm() {
           ✓
         </div>
         <h1 className="mt-5 font-display text-2xl font-semibold text-foreground">
-          Signup received
+          Account created
         </h1>
         <p className="mt-2 text-sm text-muted">{state.message}</p>
         <Link
@@ -138,7 +138,7 @@ export function SignupForm() {
             />
           </label>
           <p className="mt-1 text-xs text-muted">
-            An organizer verifies this before your account is approved.
+            Kept private for event verification. Your participant ID is issued as soon as you sign up.
           </p>
         </div>
 

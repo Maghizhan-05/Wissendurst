@@ -11,10 +11,12 @@ import {
   type PaymentStatus,
 } from "@/lib/constants";
 import { paymentBlockReason } from "@/lib/payment-intent";
+import { isBanned } from "@/lib/auth";
 import type { RegistrationRow } from "@/types/database";
 
 const SUBMIT_ERRORS: Record<string, string> = {
   AUTH_REQUIRED: "Please sign in again.",
+  ACCOUNT_BANNED: "Your account is suspended, so payments can't be submitted.",
   REGISTRATION_NOT_FOUND: "Registration not found.",
   FORBIDDEN: "Registration not found.",
   TEAM_HEAD_PAYS: "Your team head completes the payment for your team.",
@@ -80,6 +82,8 @@ export async function analyzeScreenshot(
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { ok: false, error: "Please sign in again." };
+  // Suspended accounts store nothing (storage and the RPC refuse it too, 0035).
+  if (await isBanned(user.id)) return { ok: false, error: SUBMIT_ERRORS.ACCOUNT_BANNED };
 
   // Confirm the registration is the caller's (RLS scopes this select) and
   // that a payment can be submitted at all before storing anything.
