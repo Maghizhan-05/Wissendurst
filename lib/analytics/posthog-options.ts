@@ -62,8 +62,21 @@ export function buildPostHogConfig(guards: RuntimeGuards): Partial<PostHogConfig
     opt_in_site_apps: false,
     disable_external_dependency_loading: true,
 
-    // No exceptions, console, performance/network or web-vitals capture.
-    capture_exceptions: false,
+    // D-025 error tracking: uncaught errors and rejections only (never console
+    // errors), rate limited, no exception steps. Every $exception passes the
+    // same before_send sanitizer, which redacts messages/stacks.
+    capture_exceptions: {
+      capture_unhandled_errors: true,
+      capture_unhandled_rejections: true,
+      capture_console_errors: false,
+    },
+    error_tracking: {
+      exceptionRateLimiterRefillRate: 1,
+      exceptionRateLimiterBucketSize: 5,
+      captureExtensionExceptions: false,
+      exception_steps: { enabled: false },
+    },
+    // No console, performance/network or web-vitals capture.
     capture_performance: false,
     capture_dead_clicks: false,
     rageclick: false,

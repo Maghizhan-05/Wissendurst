@@ -203,8 +203,62 @@ With a token:
   navbar participant ID are blocked (`ph-no-capture`). Every event passes
   `lib/analytics/sanitize.ts` before send: same-origin pathname only (no query,
   hash or referrer), allow-listed events/properties only, PII-shaped values
-  removed. Surveys, flags, exceptions, console, network, canvas and site apps
-  are disabled (`lib/analytics/posthog-options.ts`).
+  removed. Surveys, flags, console, network, canvas and site apps are disabled
+  (`lib/analytics/posthog-options.ts`).
+
+### Error tracking, Vercel Web Analytics and the admin dashboard (D-025)
+
+- **PostHog error tracking** shares the same gate: consent + approved public
+  route only. Uncaught errors and unhandled rejections are captured natively
+  (`capture_exceptions`, never console errors), plus handled render errors from
+  `app/(public)/error.tsx` via the bridge (`captureError`). A token-bucket rate
+  limit (burst 5, refill 1/s) and no exception steps. Every `$exception` passes
+  the same `before_send` sanitizer, which keeps only `$exception_list`
+  (type/value/mechanism/stack frames), `$exception_level` and `$release_id`, and
+  recursively redacts emails, phones, UUIDs, participant/staff IDs, UPI and
+  transaction references, JWT/token-like strings, URL query/hash data,
+  uploaded/storage URLs and filenames and long numbers
+  (`lib/analytics/redact.ts`). Frame source context and variables are dropped;
+  only same-origin script paths survive. Sensitive routes never report.
+- **Vercel Web Analytics** (`@vercel/analytics/next`, one `<Analytics />` in
+  `components/analytics/vercel-analytics.tsx`) is mounted only while the same
+  PostHog consent is granted on an approved route; it shares no other state.
+  Its injected script outlives an unmount, so its `beforeSend`
+  (`lib/analytics/vercel.ts`) re-checks live consent, GPC/DNT and route at
+  send time, reduces the URL to the pathname and drops a repeated pageview for
+  the same path. No manual Vercel or PostHog pageviews: PostHog uses
+  `capture_pageview: 'history_change'` + `capture_pageleave: true`, Vercel
+  uses its own route tracking — one source per tool. (Vercel may send the
+  referrer, which browsers reduce to the origin for cross-site visits.)
+- **`/admin/analytics`** (super admins only, `requireSuperAdmin()`): 30-day
+  aggregates — page views, sessions, top public paths, the
+  `registration_started → free_registration_confirmed` funnel, exception volume
+  and top exception types — read server-side from the PostHog EU Query API
+  (`lib/analytics/dashboard.ts`, `lib/data/analytics-dashboard.ts`). No
+  visitors, distinct IDs, sessions, replays or exception payloads; the page
+  loads no client analytics SDK. Missing or rejected credentials show a
+  "not configured" / "rejected" notice instead of failing.
+
+### Remaining console / provider actions (owner)
+
+1. **Vercel → Project → Analytics → Enable Web Analytics** (it serves
+   `/_vercel/insights/*`; until enabled, the script 404s harmlessly). Optional:
+   an Analytics spend/usage limit.
+2. **PostHog → Error tracking:** turn on exception autocapture for the
+   project (the SDK only sends after consent; remote config is still subject to
+   the code-level settings). Set alerts if wanted.
+3. **Source maps (optional, gated):** stacks are minified until source maps
+   are uploaded. Uploading needs a PostHog **personal API key with
+   error-tracking write** in the *build* environment
+   (`@posthog/nextjs-config` / `posthog-cli sourcemap`). It is **not** set up in
+   this repository; adding it is a separate approval. Never serve source maps
+   publicly.
+4. **Dashboard read credential:** PostHog → Settings → Personal API keys →
+   create a key scoped to **this project only** with **`query:read`** only. In
+   Vercel (Production, *not* exposed to the browser) set
+   `POSTHOG_PERSONAL_API_KEY` and `POSTHOG_PROJECT_ID` (numeric, from Project
+   settings), then redeploy. Rotate it if ever leaked; never prefix it
+   `NEXT_PUBLIC_`.
 
 ### PostHog console checklist (owner)
 

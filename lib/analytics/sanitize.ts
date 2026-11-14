@@ -14,6 +14,7 @@
  *  - Person properties ($set / $set_once) are never sent.
  */
 import { eventSlugFromPath, isAnalyticsRoute, normalizePathname } from "./routes.ts";
+import { sanitizeExceptionLevel, sanitizeExceptionList } from "./redact.ts";
 
 /** Product events (typed in ./events). */
 export const CUSTOM_EVENTS = [
@@ -25,7 +26,7 @@ export const CUSTOM_EVENTS = [
 export type CustomEventName = (typeof CUSTOM_EVENTS)[number];
 
 /** PostHog events produced by the enabled features. */
-export const SYSTEM_EVENTS = ["$pageview", "$pageleave", "$autocapture", "$$heatmap", "$snapshot"] as const;
+export const SYSTEM_EVENTS = ["$pageview", "$pageleave", "$autocapture", "$$heatmap", "$snapshot", "$exception"] as const;
 
 const ALLOWED_EVENTS = new Set<string>([...CUSTOM_EVENTS, ...SYSTEM_EVENTS]);
 
@@ -95,6 +96,8 @@ const EVENT_KEYS: Record<string, readonly string[]> = {
   $autocapture: ["$event_type", "$ce_version", "$elements", "$elements_chain"],
   $$heatmap: ["$heatmap_data"],
   $snapshot: ["$snapshot_data", "$snapshot_bytes", "$snapshot_source"],
+  // D-025: redacted exception list + level + build release id only.
+  $exception: ["$exception_list", "$exception_level", "$release_id"],
   consent_granted: [],
   consent_denied: [],
   registration_started: PRODUCT_PROPERTIES,
@@ -395,6 +398,19 @@ export function sanitizeEvent<T extends CaptureLike>(result: T | null, ctx: Sani
       case "$event_type":
         if (value === "click" || value === "submit") props[key] = value;
         continue;
+      case "$exception_list": {
+        const list = sanitizeExceptionList(value, ctx.origin);
+        if (list) props[key] = list;
+        continue;
+      }
+      case "$exception_level": {
+        const level = sanitizeExceptionLevel(value);
+        if (level) props[key] = level;
+        continue;
+      }
+      case "$release_id":
+        if (typeof value === "string" && /^[A-Za-z0-9._-]{1,80}$/.test(value)) props[key] = value;
+        continue;
     }
     if (typeof value === "string") {
       if (ANONYMOUS_ID_KEYS.has(key) || key === "token") {
@@ -410,6 +426,7 @@ export function sanitizeEvent<T extends CaptureLike>(result: T | null, ctx: Sani
   if (result.event === "$autocapture" && props.$event_type === undefined) return null;
   if (result.event === "$$heatmap" && !props.$heatmap_data) return null;
   if (result.event === "$snapshot" && !props.$snapshot_data) return null;
+  if (result.event === "$exception" && !props.$exception_list) return null;
 
   const clean = { ...result, properties: props } as T;
   delete (clean as Record<string, unknown>).$set;

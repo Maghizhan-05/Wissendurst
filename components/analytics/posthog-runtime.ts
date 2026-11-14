@@ -7,23 +7,23 @@
  * compiled in (no external scripts are fetched).
  */
 import posthog from "posthog-js/dist/module.full.no-external";
-import { browserSignalDenial, readConsentFromCookieString } from "@/lib/analytics/consent";
-import { isAnalyticsRoute } from "@/lib/analytics/routes";
 import { buildPostHogConfig } from "@/lib/analytics/posthog-options";
-import { bridge, type AnalyticsRuntime } from "./bridge";
+import { bridge, liveAnalyticsAllowed, type AnalyticsRuntime } from "./bridge";
 
 let initialized = false;
+/** Replay stopped because the page left an approved route (or consent ended). */
 let suspended = false;
+/** Consent withdrawn in this tab; cleared only by a fresh grant. */
+let revoked = false;
 
+/**
+ * Event gate, evaluated live at send time. Deliberately independent of the
+ * React-driven `suspended` flag: a client navigation back to an approved
+ * route fires its history_change $pageview before the provider re-renders,
+ * and the live location/consent check is the authoritative boundary anyway.
+ */
 function mayCapture(): boolean {
-  if (typeof window === "undefined") return false;
-  return (
-    !suspended &&
-    bridge.granted &&
-    readConsentFromCookieString(document.cookie) === "granted" &&
-    !browserSignalDenial(navigator as Navigator & { globalPrivacyControl?: unknown }, window as unknown as { doNotTrack?: unknown }) &&
-    isAnalyticsRoute(window.location.pathname)
-  );
+  return !revoked && liveAnalyticsAllowed();
 }
 
 function clearPostHogStorage(): void {
@@ -45,6 +45,7 @@ function clearPostHogStorage(): void {
 /** Initializes once (idempotent) and opts in. */
 export function startRuntime(token: string, firstGrant: boolean): AnalyticsRuntime {
   suspended = false;
+  revoked = false;
   if (!initialized) {
     posthog.init(
       token,
@@ -69,18 +70,25 @@ const runtime: AnalyticsRuntime = {
     if (!mayCapture()) return;
     posthog.capture(event, { ...props }, { send_instantly: true });
   },
+  captureError(error) {
+    if (!mayCapture()) return;
+    // No additional properties: the message/stack are redacted by before_send.
+    posthog.captureException(error);
+  },
   suspend() {
     suspended = true;
     if (initialized) posthog.stopSessionRecording();
   },
   resume() {
-    if (!initialized || !bridge.granted) return;
+    if (!initialized || revoked || !bridge.granted) return;
+    if (!suspended) return;
     suspended = false;
     posthog.startSessionRecording();
   },
   revoke() {
     if (!initialized) return;
     if (mayCapture()) posthog.capture("consent_denied", {}, { send_instantly: true });
+    revoked = true;
     suspended = true;
     posthog.stopSessionRecording();
     // reset() restores the default (opted-out) consent; opt out explicitly after.

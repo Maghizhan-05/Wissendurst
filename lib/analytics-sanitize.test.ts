@@ -41,7 +41,7 @@ test("only the approved events are sent", () => {
     const props = e === "$autocapture" ? { ...base, $event_type: "click" } : base;
     assert.ok(sanitizeEvent({ event: e, properties: props }, ctx("/events/robotics")), e);
   }
-  for (const e of ["$identify", "$set", "$exception", "$opt_in", "$rageclick", "$dead_click", "$web_vitals", "$feature_flag_called", "$groupidentify", "payment_confirmed", "custom"]) {
+  for (const e of ["$identify", "$set", "$opt_in", "$rageclick", "$dead_click", "$web_vitals", "$feature_flag_called", "$groupidentify", "payment_confirmed", "custom"]) {
     assert.equal(sanitizeEvent({ event: e, properties: base }, ctx("/")), null, e);
   }
 });

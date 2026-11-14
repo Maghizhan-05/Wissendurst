@@ -11,6 +11,7 @@ import {
   LayoutTemplate,
   TrendingUp,
   Ticket,
+  BarChart3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { AdminScope, EventPermission } from "@/lib/constants";
@@ -24,6 +25,8 @@ type NavLink = {
   /** Also shown to accounts with this permission on an assigned event (0034). */
   eventArea?: EventPermission;
   badge?: number;
+  /** Visible only to super admins. */
+  superOnly?: boolean;
 };
 
 export function AdminSidebar({
@@ -47,14 +50,17 @@ export function AdminSidebar({
     { href: "/admin/collections", label: "Collections", icon: TrendingUp, scope: "payments" },
     { href: "/admin/users", label: "Users", icon: Users, scope: "signups" },
     { href: "/admin/content", label: "Site content", icon: LayoutTemplate, scope: "content" },
+    // D-025: aggregate analytics — super admins only (is_super_admin, never a display ID).
+    { href: "/admin/analytics", label: "Analytics", icon: BarChart3, superOnly: true },
   ];
 
   const visible = links.filter(
     (l) =>
-      !l.scope ||
-      isSuper ||
-      scopes.includes(l.scope) ||
-      (l.eventArea !== undefined && eventAreas[l.eventArea]),
+      (l.superOnly ? isSuper : true) &&
+      (!l.scope ||
+        isSuper ||
+        scopes.includes(l.scope) ||
+        (l.eventArea !== undefined && eventAreas[l.eventArea])),
   );
 
   return (

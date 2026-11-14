@@ -30,10 +30,15 @@ function files(dir: string): string[] {
   return out;
 }
 
-/** Imports/calls that mean "analytics runs here". */
-const ANALYTICS_USE = /posthog|components\/analytics|analytics-provider|posthog-runtime|\btrack\(/i;
+/**
+ * Imports/calls that mean "a client analytics SDK runs here" (PostHog or
+ * Vercel Web Analytics). Server-side aggregate reads for /admin/analytics are
+ * allowed; they are guarded separately below.
+ */
+const ANALYTICS_USE =
+  /posthog-js|@vercel\/analytics|components\/analytics|analytics-provider|posthog-runtime|vercel-analytics|\btrack\(|captureError\(|captureException\(|posthog\.|window\.va\b/i;
 
-test("no PostHog import or call in any sensitive route tree, action or server code", () => {
+test("no client analytics SDK (PostHog or Vercel) in any sensitive route tree, action or server code", () => {
   const sensitive = [
     "app/(auth)",
     "app/auth",
@@ -143,7 +148,6 @@ test("configuration: EU host, anonymous, consent-first, features disabled", () =
     assert.equal(c[k], true, k);
   }
   for (const k of [
-    "capture_exceptions",
     "capture_performance",
     "capture_dead_clicks",
     "rageclick",
@@ -154,6 +158,18 @@ test("configuration: EU host, anonymous, consent-first, features disabled", () =
   ] as const) {
     assert.equal(c[k], false, k);
   }
+  // D-025: uncaught errors/rejections only (never console), rate limited.
+  assert.deepEqual(c.capture_exceptions, {
+    capture_unhandled_errors: true,
+    capture_unhandled_rejections: true,
+    capture_console_errors: false,
+  });
+  assert.deepEqual(c.error_tracking, {
+    exceptionRateLimiterRefillRate: 1,
+    exceptionRateLimiterBucketSize: 5,
+    captureExtensionExceptions: false,
+    exception_steps: { enabled: false },
+  });
   assert.equal(c.capture_pageview, "history_change");
   assert.equal(c.capture_pageleave, true);
   assert.equal(c.capture_heatmaps, true);

@@ -2,9 +2,11 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
+import dynamic from "next/dynamic";
 import {
   browserSignalDenial,
   effectiveConsent,
+  readConsentFromCookieString,
   serializeConsentCookie,
   type ConsentChoice,
   type EffectiveConsent,
@@ -13,6 +15,12 @@ import {
 import { isAnalyticsRoute } from "@/lib/analytics/routes";
 import { bridge } from "./bridge";
 import { ConsentPanel } from "./consent-panel";
+
+/** Vercel Web Analytics chunk: fetched only when first mounted (after consent). */
+const VercelAnalytics = dynamic(() => import("./vercel-analytics"), { ssr: false });
+
+/** True once this tab has hydrated the provider (later mounts are client-only). */
+let hydrated = false;
 
 interface AnalyticsContextValue {
   consent: EffectiveConsent;
@@ -64,7 +72,16 @@ export function AnalyticsProvider({
 }) {
   const pathname = usePathname();
   const routeAllowed = isAnalyticsRoute(pathname);
-  const [stored, setStored] = useState<StoredConsent>(initialStored);
+  // The cookie is the source of truth. The server-read value is used for the
+  // first (hydrating) render; a client-side remount of this layout (e.g.
+  // returning from /signup) may receive a cached, stale server value, so it
+  // reads the live cookie instead.
+  const [stored, setStored] = useState<StoredConsent>(() =>
+    typeof document === "undefined" || !hydrated ? initialStored : readConsentFromCookieString(document.cookie),
+  );
+  useEffect(() => {
+    hydrated = true;
+  }, []);
   const [prefsOpen, setPrefsOpen] = useState(false);
   const firstGrant = useRef(false);
   const loading = useRef(false);
@@ -117,6 +134,8 @@ export function AnalyticsProvider({
       if (serverSignal || liveSignal()) return; // the browser signal always wins
       if (choice === "denied") {
         bridge.runtime?.revoke();
+        // A later re-grant must go through startRuntime (opt back in).
+        bridge.runtime = null;
         bridge.granted = false;
       } else {
         firstGrant.current = true;
@@ -124,6 +143,9 @@ export function AnalyticsProvider({
       document.cookie = serializeConsentCookie(choice, {
         secure: process.env.NODE_ENV === "production" && window.location.protocol === "https:",
       });
+      // The live gate must already be open when the Vercel mount sends its
+      // first page view in the same commit.
+      if (choice === "granted") bridge.granted = true;
       setStored(choice);
       setPrefsOpen(false);
     },
@@ -137,6 +159,8 @@ export function AnalyticsProvider({
   return (
     <AnalyticsContext.Provider value={value}>
       {children}
+      {/* D-025: the one Vercel Web Analytics mount — consent + approved route only. */}
+      {granted && routeAllowed && <VercelAnalytics />}
       {(showBanner || prefsOpen) && (
         <ConsentPanel
           mode={prefsOpen ? "preferences" : "banner"}
