@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { queryError } from "@/lib/supabase/query-error";
 import type { AdminScope, EventPermission } from "@/lib/constants";
 import type { ProfileRow } from "@/types/database";
+import { isAnalyticsAdminProfile } from "@/lib/analytics/access";
 
 /** Whether a profile is any kind of admin (super or scoped). */
 export function isAdminProfile(profile: ProfileRow | null): boolean {
@@ -226,5 +227,24 @@ export async function requireScope(scope: AdminScope): Promise<ProfileRow> {
 export async function requireSuperAdmin(): Promise<ProfileRow> {
   const access = await requireAdminAccess();
   if (!access.isSuper) redirect("/admin");
+  return access.profile;
+}
+
+/**
+ * Whether this (approved, unbanned) admin account may use Analytics: a super
+ * admin whose participant ID is the single analytics identity (D-026).
+ */
+export function canViewAnalytics(access: AdminAccess | null): boolean {
+  return !!access && access.isSuper && isAnalyticsAdminProfile(access.profile);
+}
+
+/**
+ * The ONE gate for /admin/analytics, its heatmap pages and the screenshot
+ * route. Every other admin — including other super admins — is redirected to
+ * /admin before any PostHog request is made.
+ */
+export async function requireAnalyticsAdmin(): Promise<ProfileRow> {
+  const access = await requireAdminAccess();
+  if (!canViewAnalytics(access)) redirect("/admin");
   return access.profile;
 }

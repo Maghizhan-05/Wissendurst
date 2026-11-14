@@ -25,17 +25,20 @@ type NavLink = {
   /** Also shown to accounts with this permission on an assigned event (0034). */
   eventArea?: EventPermission;
   badge?: number;
-  /** Visible only to super admins. */
-  superOnly?: boolean;
+  /** Visible only when the server says canViewAnalytics (requireAnalyticsAdmin identity). */
+  analyticsOnly?: boolean;
 };
 
 export function AdminSidebar({
   scopes,
   isSuper,
+  canViewAnalytics = false,
   eventAreas = { events: false, payments: false },
 }: {
   scopes: AdminScope[];
   isSuper: boolean;
+  /** Derived server-side by canViewAnalytics(access); never inferred from isSuper. */
+  canViewAnalytics?: boolean;
   /** Global scope OR an event assignment grants the area (0034). */
   eventAreas?: Record<EventPermission, boolean>;
 }) {
@@ -50,13 +53,13 @@ export function AdminSidebar({
     { href: "/admin/collections", label: "Collections", icon: TrendingUp, scope: "payments" },
     { href: "/admin/users", label: "Users", icon: Users, scope: "signups" },
     { href: "/admin/content", label: "Site content", icon: LayoutTemplate, scope: "content" },
-    // D-025: aggregate analytics — super admins only (is_super_admin, never a display ID).
-    { href: "/admin/analytics", label: "Analytics", icon: BarChart3, superOnly: true },
+    // D-026: analytics — only the single analytics admin (server-derived flag).
+    { href: "/admin/analytics", label: "Analytics", icon: BarChart3, analyticsOnly: true },
   ];
 
   const visible = links.filter(
     (l) =>
-      (l.superOnly ? isSuper : true) &&
+      (l.analyticsOnly ? canViewAnalytics === true : true) &&
       (!l.scope ||
         isSuper ||
         scopes.includes(l.scope) ||

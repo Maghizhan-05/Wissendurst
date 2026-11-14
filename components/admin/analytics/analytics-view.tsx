@@ -22,7 +22,7 @@ export function AnalyticsView({
     <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted">Super admin · PostHog EU</p>
+          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted">Analytics admin · PostHog EU</p>
           <h1 className="mt-1 flex items-center gap-2.5 font-display text-3xl font-semibold tracking-tight text-foreground">
             <BarChart3 className="size-6 text-brand" aria-hidden /> Analytics
           </h1>

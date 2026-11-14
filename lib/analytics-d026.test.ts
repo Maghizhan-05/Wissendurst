@@ -583,13 +583,15 @@ test("source boundaries: super-admin gates, server-only key, no client SDK, read
     ["page", page, "getAnalyticsDashboard("],
     ["viewer", viewer, "getHeatmap("],
   ] as const) {
-    assert.match(src, /await requireSuperAdmin\(\);/, name);
-    assert.ok(src.indexOf("await requireSuperAdmin()") < src.indexOf(loader), `${name}: authorize before loading`);
+    assert.match(src, /await requireAnalyticsAdmin\(\);/, name);
+    assert.doesNotMatch(src, /requireSuperAdmin/, name);
+    assert.ok(src.indexOf("await requireAnalyticsAdmin()") < src.indexOf(loader), `${name}: authorize before loading`);
     assert.doesNotMatch(src, /^"use client"/m, name);
   }
-  assert.match(route, /authorize: requireSuperAdmin/);
+  assert.match(route, /authorize: requireAnalyticsAdmin,/);
+  assert.doesNotMatch(route, /requireSuperAdmin/);
   assert.match(read("lib/analytics/heatmap-proxy.ts"), /\/\/ Not wrapped in try[^\n]*\n\s+await deps\.authorize\(\);\n\n\s+if \(!isShortId/);
-  assert.match(read("lib/auth.ts"), /export async function requireSuperAdmin\(\): Promise<ProfileRow> \{\n\s+const access = await requireAdminAccess\(\);\n\s+if \(!access\.isSuper\) redirect\("\/admin"\);/);
+  assert.match(read("lib/auth.ts"), /export async function requireAnalyticsAdmin\(\): Promise<ProfileRow> \{\n\s+const access = await requireAdminAccess\(\);\n\s+if \(!canViewAnalytics\(access\)\) redirect\("\/admin"\);\n\s+return access\.profile;/);
 
   const adminFiles = [...files("app/admin"), ...files("components/admin")];
   for (const f of adminFiles) {

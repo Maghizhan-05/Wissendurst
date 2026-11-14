@@ -3,7 +3,7 @@ import { ArrowUpRight, LogOut } from "lucide-react";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { Button } from "@/components/ui/button";
-import { hasAreaAccess, requireAdminAccess } from "@/lib/auth";
+import { canViewAnalytics, hasAreaAccess, requireAdminAccess } from "@/lib/auth";
 import { signOut } from "@/lib/actions/auth";
 import { SITE } from "@/lib/constants";
 
@@ -50,6 +50,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/">) {
             <AdminSidebar
               scopes={access.scopes}
               isSuper={access.isSuper}
+              canViewAnalytics={canViewAnalytics(access)}
               eventAreas={{
                 events: hasAreaAccess(access, "events"),
                 payments: hasAreaAccess(access, "payments"),

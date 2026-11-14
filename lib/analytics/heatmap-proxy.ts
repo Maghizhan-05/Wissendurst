@@ -2,7 +2,7 @@
  * Same-origin screenshot proxy for saved heatmaps (D-026). Pure: the route
  * handler injects authorization and the server-only loaders.
  *
- * Order matters: authorize (super admin) → validate input → resolve the
+ * Order matters: authorize (requireAnalyticsAdmin) → validate input → resolve the
  * heatmap through the same origin/route filter as the gallery → fetch bytes.
  * Responses carry only our own headers; the PostHog bearer key, upstream
  * headers and provider error bodies never reach the browser.
@@ -18,7 +18,7 @@ import {
 } from "./heatmaps.ts";
 
 export interface ProxyDeps {
-  /** Must throw/redirect for anyone but a super admin (requireSuperAdmin). */
+  /** Must throw/redirect for anyone but the analytics admin (requireAnalyticsAdmin). */
   authorize: () => Promise<unknown>;
   getHeatmap: (shortId: string) => Promise<HeatmapDetail>;
   getScreenshot: (id: string, width: number) => Promise<ScreenshotResult>;

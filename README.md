@@ -230,7 +230,17 @@ With a token:
   `capture_pageview: 'history_change'` + `capture_pageleave: true`, Vercel
   uses its own route tracking — one source per tool. (Vercel may send the
   referrer, which browsers reduce to the origin for cross-site visits.)
-- **`/admin/analytics`** (super admins only, `requireSuperAdmin()`; D-026):
+- **`/admin/analytics`** (one analytics admin only, `requireAnalyticsAdmin()`; D-026):
+  access is limited to the single profile with `role = 'admin'`,
+  `is_super_admin = true` **and** `participant_id` exactly `supadmin/01`
+  (user-approved identity; `lib/analytics/access.ts` is the only place the
+  literal lives). Other super admins, scoped admins and event admins are
+  redirected to `/admin` before any PostHog request, and the sidebar link is
+  shown only from a server-derived `canViewAnalytics` flag. Because staff IDs
+  are reusable display IDs, reassigning `supadmin/01` moves analytics access
+  with it.
+
+  The page is
   a Recharts dashboard styled with the site tokens. GET `?range=7|30|90`
   (default 30). KPI strip (page views, sessions, registrations started, free
   confirmed, conversion); daily page views/sessions with toggleable series;
@@ -253,7 +263,7 @@ With a token:
     heatmaps of the six public routes are listed; creator identity, raw render
     errors and query/hash data are dropped. Screenshots stream through
     `/admin/analytics/heatmaps/:shortId/screenshot?width=` which re-runs
-    `requireSuperAdmin()`, validates the ID and width (100–3000), adds the
+    `requireAnalyticsAdmin()`, validates the ID and width (100–3000), adds the
     bearer key server-side, accepts only JPEG/PNG/WebP up to 20 MB, answers
     `Cache-Control: private` and never forwards upstream headers or provider
     errors. Missing `heatmap:read`, rejection, no saved heatmaps, still

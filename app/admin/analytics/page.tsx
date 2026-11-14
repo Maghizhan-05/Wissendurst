@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requireSuperAdmin } from "@/lib/auth";
+import { requireAnalyticsAdmin } from "@/lib/auth";
 import { getAnalyticsDashboard, getHeatmapList } from "@/lib/data/analytics-dashboard";
 import { parseRange } from "@/lib/analytics/dashboard";
 import { AnalyticsView } from "@/components/admin/analytics/analytics-view";
@@ -13,7 +13,7 @@ export const metadata: Metadata = { title: "Admin · Analytics" };
  * analytics SDK; the admin layout never mounts one.
  */
 export default async function AdminAnalyticsPage(props: PageProps<"/admin/analytics">) {
-  await requireSuperAdmin();
+  await requireAnalyticsAdmin();
   const range = parseRange((await props.searchParams).range);
   const [result, heatmaps] = await Promise.all([getAnalyticsDashboard(range), getHeatmapList()]);
   return <AnalyticsView range={range} result={result} heatmaps={heatmaps} />;
