@@ -7,6 +7,8 @@ import { AdminAccessForm } from "@/components/admin/admin-access-form";
 import { EventAdminAccessEditor } from "@/components/admin/event-admin-access-editor";
 import { getAssignableEvents, getAssignmentsOfUser, getEventsByIds } from "@/lib/data/event-admin";
 import { UserBanForm } from "@/components/admin/user-ban-form";
+import { IdCardImage } from "@/components/admin/id-card-image";
+import { getIdCardSignedUrl } from "@/lib/actions/admin";
 import { EmptyState } from "@/components/ui/misc";
 import { getProfileNames, getUserBanState, getUserWithRegistrations } from "@/lib/data/admin";
 import { requireScope } from "@/lib/auth";
@@ -31,6 +33,9 @@ export default async function AdminUserPage({
   const ban = await getUserBanState(profile.id);
   const actorIds = [...new Set(ban.history.map((h) => h.actor).filter((a): a is string => a != null))];
   const actors = actorIds.length ? await getProfileNames(actorIds) : new Map<string, string>();
+
+  // Private college ID card (Users scope, same as the retired approval page).
+  const idCardUrl = profile.id_card_path ? await getIdCardSignedUrl(profile.id_card_path) : null;
 
   // Super admin only: per-event administration of this account (0034).
   const eventAccess = viewer.is_super_admin ? await loadEventAccess(profile.id) : null;
@@ -112,6 +117,14 @@ export default async function AdminUserPage({
           ))}
         </dl>
       </div>
+
+      <section aria-labelledby="id-card" className="rounded-2xl border border-border bg-surface p-6">
+        <h2 id="id-card" className="font-display text-lg font-semibold text-foreground">
+          College ID card
+        </h2>
+        <p className="mt-1 text-sm text-muted">Submitted at sign-up. The link expires after 10 minutes.</p>
+        <IdCardImage url={idCardUrl} hasCard={Boolean(profile.id_card_path)} className="mt-4" />
+      </section>
 
       {viewer.is_super_admin && (
         <div className="rounded-2xl border border-border bg-surface p-6">

@@ -82,6 +82,9 @@ export interface ContactPerson {
   college: string | null;
   course: string | null;
   year: string | null;
+  /** For the Users-scope ID card view only; never rendered as text. */
+  profileId: string | null;
+  idCardPath: string | null;
 }
 
 /** Contact-focused registration detail (no payment evidence). */
@@ -107,6 +110,8 @@ type ContactRow = {
   payment_status: PaymentStatus;
   event: { id: string; slug: string; title: string; event_date: string | null } | null;
   profile: {
+    id: string;
+    id_card_path: string | null;
     participant_id: string | null;
     full_name: string;
     email: string;
@@ -119,7 +124,7 @@ type ContactRow = {
 };
 
 const CONTACT_SELECT =
-  "id, event_id, team_id, is_team_head, registered_at, registration_status, payment_status, event:events!registrations_event_id_fkey(id,slug,title,event_date), profile:profiles!profile_id(participant_id,full_name,email,phone,college,course,year), team:teams!team_id(name,member_count,code)";
+  "id, event_id, team_id, is_team_head, registered_at, registration_status, payment_status, event:events!registrations_event_id_fkey(id,slug,title,event_date), profile:profiles!profile_id(id,id_card_path,participant_id,full_name,email,phone,college,course,year), team:teams!team_id(name,member_count,code)";
 
 function person(r: ContactRow): ContactPerson {
   return {
@@ -132,6 +137,8 @@ function person(r: ContactRow): ContactPerson {
     college: r.profile?.college ?? null,
     course: r.profile?.course ?? null,
     year: r.profile?.year ?? null,
+    profileId: r.profile?.id ?? null,
+    idCardPath: r.profile?.id_card_path ?? null,
   };
 }
 

@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Mail, Phone } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, Mail, Phone } from "lucide-react";
 import { PaymentBadge, RegistrationBadge } from "@/components/ui/badge";
 import { getRegistrationContact, type ContactPerson } from "@/lib/data/event-admin";
-import { canOnEvent, requireEventArea } from "@/lib/auth";
+import { canOnEvent, hasGlobalScope, requireEventArea } from "@/lib/auth";
+import { getIdCardSignedUrl } from "@/lib/actions/admin";
+import { IdCardImage } from "@/components/admin/id-card-image";
 import { formatEventDate } from "@/lib/utils";
 import { teamLabel } from "@/lib/team-label";
 
@@ -25,6 +27,12 @@ export default async function RegistrationDetailPage({
   // Unknown, unconfirmed, or another event's registration: indistinguishable.
   if (!reg || !canOnEvent(access, reg.eventId, "events")) notFound();
   const canReviewPayment = canOnEvent(access, reg.eventId, "payments");
+  // ID cards are private: only for viewers holding the Users scope (as on the
+  // user detail page). Per-event admins see contacts only.
+  const canSeeUsers = hasGlobalScope(access, "signups");
+  const idCards = canSeeUsers
+    ? await Promise.all(reg.people.map((p) => (p.idCardPath ? getIdCardSignedUrl(p.idCardPath) : Promise.resolve(null))))
+    : null;
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -75,8 +83,13 @@ export default async function RegistrationDetailPage({
           {reg.team ? "Team members" : "Participant"}
         </h2>
         <ul className="grid gap-3 sm:grid-cols-2">
-          {reg.people.map((p) => (
-            <PersonCard key={p.registrationId} person={p} showRole={Boolean(reg.team)} />
+          {reg.people.map((p, i) => (
+            <PersonCard
+              key={p.registrationId}
+              person={p}
+              showRole={Boolean(reg.team)}
+              idCard={idCards ? { url: idCards[i] } : null}
+            />
           ))}
         </ul>
       </section>
@@ -94,7 +107,16 @@ export default async function RegistrationDetailPage({
   );
 }
 
-function PersonCard({ person: p, showRole }: { person: ContactPerson; showRole: boolean }) {
+function PersonCard({
+  person: p,
+  showRole,
+  idCard,
+}: {
+  person: ContactPerson;
+  showRole: boolean;
+  /** Present only for Users-scope viewers. */
+  idCard: { url: string | null } | null;
+}) {
   const study = [p.course, p.year].filter(Boolean).join(" · ");
   return (
     <li className="rounded-2xl border border-border bg-surface p-4">
@@ -141,6 +163,22 @@ function PersonCard({ person: p, showRole }: { person: ContactPerson; showRole: 
           </div>
         )}
       </dl>
+      {idCard && (
+        <div className="mt-4 border-t border-border pt-4">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted">College ID card</p>
+            {p.profileId && (
+              <Link
+                href={`/admin/users/${p.profileId}`}
+                className="inline-flex items-center gap-1 text-xs font-medium text-brand hover:underline"
+              >
+                User details <ArrowUpRight className="size-3" aria-hidden />
+              </Link>
+            )}
+          </div>
+          <IdCardImage url={idCard.url} hasCard={Boolean(p.idCardPath)} compact />
+        </div>
+      )}
     </li>
   );
 }
