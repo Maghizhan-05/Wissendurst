@@ -12,20 +12,51 @@ import {
   getOfferTargetOptions,
   getParentEventOptions,
 } from "@/lib/data/admin";
-import { requireScope } from "@/lib/auth";
+import { canOnEvent, hasGlobalScope, requireEventArea } from "@/lib/auth";
 import { getEventCategories } from "@/lib/data/event-categories";
+import { getEventForAssignee, getEventWhatsAppLink } from "@/lib/data/event-admin";
+import { EventDetailsForm } from "@/components/admin/event-details-form";
+import { EventWhatsAppForm } from "@/components/admin/event-whatsapp-form";
 
 export const metadata: Metadata = { title: "Admin · Edit event" };
 
 export default async function EditEventPage({
   params,
 }: PageProps<"/admin/events/[id]/edit">) {
-  await requireScope("events");
+  const access = await requireEventArea("events");
   const { id } = await params;
+  // Another event than the ones administered is indistinguishable from none.
+  if (!canOnEvent(access, id, "events")) notFound();
+
+  if (!hasGlobalScope(access, "events")) {
+    // Event administrator (0034): descriptive details + private WhatsApp link.
+    const assigned = await getEventForAssignee(id);
+    if (!assigned) notFound();
+    const whatsappUrl = await getEventWhatsAppLink(id);
+    return (
+      <div className="mx-auto max-w-3xl">
+        <Link
+          href="/admin/events"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-foreground"
+        >
+          <ArrowLeft className="size-4" /> Back to your events
+        </Link>
+        <div className="mt-4">
+          <h1 className="font-display text-2xl font-semibold text-foreground">Edit event details</h1>
+          <p className="mt-1 text-sm text-muted">{assigned.title}</p>
+        </div>
+        <div className="mt-8 space-y-8">
+          <EventDetailsForm event={assigned} />
+          <EventWhatsAppForm eventId={assigned.id} initialUrl={whatsappUrl} />
+        </div>
+      </div>
+    );
+  }
+
   const event = await getEventByIdAdmin(id);
   if (!event) notFound();
 
-  const [parents, offers, offerTargets, currentParent, categories, teamPrices, priceWindows] = await Promise.all([
+  const [parents, offers, offerTargets, currentParent, categories, teamPrices, priceWindows, whatsappUrl] = await Promise.all([
     getParentEventOptions(id),
     getEventOffersForSource(id),
     getOfferTargetOptions(id),
@@ -33,6 +64,7 @@ export default async function EditEventPage({
     getEventCategories(),
     getEventTeamPrices(id),
     getEventPriceWindows(id),
+    getEventWhatsAppLink(id),
   ]);
   // Archived events keep their parent (it may itself be archived and is then
   // not a selectable option); the form submits it unchanged.
@@ -78,6 +110,9 @@ export default async function EditEventPage({
           }))}
           offerTargets={offerTargets}
         />
+      </div>
+      <div className="mt-10">
+        <EventWhatsAppForm eventId={event.id} initialUrl={whatsappUrl} />
       </div>
     </div>
   );

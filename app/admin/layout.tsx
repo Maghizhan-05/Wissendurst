@@ -3,15 +3,17 @@ import { ArrowUpRight, LogOut } from "lucide-react";
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { Button } from "@/components/ui/button";
-import { requireAdmin } from "@/lib/auth";
+import { hasAreaAccess, requireAdminAccess } from "@/lib/auth";
 import { signOut } from "@/lib/actions/auth";
 import { countPendingSignups } from "@/lib/data/admin";
 import { SITE } from "@/lib/constants";
 
 export default async function AdminLayout({ children }: LayoutProps<"/">) {
-  const profile = await requireAdmin();
+  // Global admins, plus accounts holding per-event assignments (0034).
+  const access = await requireAdminAccess();
+  const { profile } = access;
   const pending =
-    profile.is_super_admin || profile.admin_scopes.includes("signups")
+    access.isSuper || access.scopes.includes("signups")
       ? await countPendingSignups()
       : 0;
 
@@ -51,8 +53,12 @@ export default async function AdminLayout({ children }: LayoutProps<"/">) {
         <aside className="border-b border-border md:w-56 md:shrink-0 md:border-b-0 md:border-r">
           <div className="md:sticky md:top-14">
             <AdminSidebar
-              scopes={profile.admin_scopes}
-              isSuper={profile.is_super_admin}
+              scopes={access.scopes}
+              isSuper={access.isSuper}
+              eventAreas={{
+                events: hasAreaAccess(access, "events"),
+                payments: hasAreaAccess(access, "payments"),
+              }}
               pendingCount={pending}
             />
           </div>

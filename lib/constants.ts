@@ -52,6 +52,18 @@ export const ADMIN_SCOPE_LABELS: Record<AdminScope, string> = {
   content: "Site content & appearance",
 };
 
+/**
+ * Per-event administrator permissions (0034). Additive to the global scopes
+ * above: an account may hold them for single events without any global scope.
+ */
+export const EVENT_PERMISSIONS = ["events", "payments"] as const;
+export type EventPermission = (typeof EVENT_PERMISSIONS)[number];
+
+export const EVENT_PERMISSION_LABELS: Record<EventPermission, string> = {
+  events: "Event details & registrations",
+  payments: "Payment reviews",
+};
+
 export const REGISTRATION_STATUS_LABELS: Record<RegistrationStatus, string> = {
   pending: "Pending",
   confirmed: "Confirmed",

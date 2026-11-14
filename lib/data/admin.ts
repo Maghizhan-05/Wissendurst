@@ -1,6 +1,9 @@
 import "server-only";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { queryError } from "@/lib/supabase/query-error";
+import { fetchAllRows } from "@/lib/data/paged";
+import { countRegistrationUnits, type UnitRow } from "@/lib/registration-groups";
 import type { PriceWindow } from "@/lib/events/price-windows";
 import type {
   EventOfferRow,
@@ -9,19 +12,6 @@ import type {
   RegistrationRow,
   RegistrationWithEventAndProfile,
 } from "@/types/database";
-
-async function countRegistrations(
-  filter?: { column: "registration_status" | "payment_status"; neq?: string; eq?: string },
-): Promise<number> {
-  const supabase = await createClient();
-  let query = supabase
-    .from("registrations")
-    .select("*", { count: "exact", head: true });
-  if (filter?.neq) query = query.neq(filter.column, filter.neq);
-  if (filter?.eq) query = query.eq(filter.column, filter.eq);
-  const { count: c } = await query;
-  return c ?? 0;
-}
 
 async function countProfiles(): Promise<number> {
   const supabase = await createClient();
@@ -33,26 +23,53 @@ async function countProfiles(): Promise<number> {
 
 export interface AdminStats {
   users: number;
+  /** Confirmed registration units (solo = 1, whole team = 1; D-022). */
   registrations: number;
+  /** Registration units whose payment is verified. */
   verified: number;
+  /** Registration units whose payment is under review. */
   underReview: number;
+  /** Registration units flagged as duplicate transactions. */
   duplicates: number;
   revenuePaise: number;
+  /** Confirmed registration units per event. */
   perEvent: { title: string; count: number }[];
 }
 
+type StatRow = UnitRow & {
+  registration_status: string;
+  payment_status: string;
+  event: { title: string } | { title: string }[] | null;
+};
+
+/**
+ * Overview figures. Registration figures count registration units with the
+ * shared helper (countRegistrationUnits — same team classification as
+ * groupRegistrations). Read with the service role after the caller checked a
+ * global admin: team sizes are needed to classify units, and content- or
+ * signups-only admins can't read teams under RLS. Only counts leave here.
+ */
 export async function getAdminStats(): Promise<AdminStats> {
   const supabase = await createClient();
+  const admin = createAdminClient();
 
-  const [users, registrations, verified, underReview, duplicates] =
-    await Promise.all([
-      countProfiles(),
-      // Confirmed registrations only — pending payment intents aren't totals.
-      countRegistrations({ column: "registration_status", eq: "confirmed" }),
-      countRegistrations({ column: "payment_status", eq: "verified" }),
-      countRegistrations({ column: "payment_status", eq: "under_review" }),
-      countRegistrations({ column: "payment_status", eq: "duplicate" }),
-    ]);
+  const [users, rows] = await Promise.all([
+    countProfiles(),
+    fetchAllRows<StatRow>("admin stats registrations", (from, to) =>
+      admin
+        .from("registrations")
+        .select(
+          "id, team_id, registration_status, payment_status, team:teams!team_id(member_count), event:events!registrations_event_id_fkey(title)",
+        )
+        .order("id", { ascending: true })
+        .range(from, to),
+    ),
+  ]);
+
+  // Confirmed registrations only — pending payment intents aren't totals.
+  const confirmed = rows.filter((r) => r.registration_status === "confirmed");
+  const byPayment = (status: string) =>
+    countRegistrationUnits(rows.filter((r) => r.payment_status === status));
 
   const { data: verifiedRows } = await supabase
     .from("registrations")
@@ -63,28 +80,24 @@ export async function getAdminStats(): Promise<AdminStats> {
     0,
   );
 
-  const { data: regRows, error: regError } = await supabase
-    .from("registrations")
-    .select("event:events!registrations_event_id_fkey(title)")
-    .eq("registration_status", "confirmed");
-  if (regError) throw queryError("admin stats per-event registrations", regError);
-  const tally = new Map<string, number>();
-  type JoinRow = { event: { title: string } | { title: string }[] | null };
-  for (const r of (regRows ?? []) as unknown as JoinRow[]) {
+  const byTitle = new Map<string, StatRow[]>();
+  for (const r of confirmed) {
     const ev = Array.isArray(r.event) ? r.event[0] : r.event;
     const title = ev?.title ?? "Unknown";
-    tally.set(title, (tally.get(title) ?? 0) + 1);
+    const list = byTitle.get(title) ?? [];
+    list.push(r);
+    byTitle.set(title, list);
   }
-  const perEvent = [...tally.entries()]
-    .map(([title, c]) => ({ title, count: c }))
+  const perEvent = [...byTitle.entries()]
+    .map(([title, list]) => ({ title, count: countRegistrationUnits(list) }))
     .sort((a, b) => b.count - a.count);
 
   return {
     users,
-    registrations,
-    verified,
-    underReview,
-    duplicates,
+    registrations: countRegistrationUnits(confirmed),
+    verified: byPayment("verified"),
+    underReview: byPayment("under_review"),
+    duplicates: byPayment("duplicate"),
     revenuePaise,
     perEvent,
   };

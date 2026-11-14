@@ -23,7 +23,8 @@ import {
   toggleEventFlag,
 } from "@/lib/actions/admin";
 import { ConfirmActionDialog } from "@/components/admin/confirm-action-dialog";
-import { requireScope } from "@/lib/auth";
+import { eventIdsWith, hasGlobalScope, requireEventArea } from "@/lib/auth";
+import { getEventsByIds } from "@/lib/data/event-admin";
 import { CategoryName } from "@/components/events/categories-context";
 import { formatEventDate, formatINR } from "@/lib/utils";
 import type { EventRow } from "@/types/database";
@@ -43,7 +44,11 @@ type EventListRow = {
 };
 
 export default async function AdminEventsPage() {
-  await requireScope("events");
+  const access = await requireEventArea("events");
+  if (!hasGlobalScope(access, "events")) {
+    const ids = eventIdsWith(access, "events");
+    return <AssignedEventsList ids={ids === "all" ? [] : ids} />;
+  }
   const [events, historyIds] = await Promise.all([
     getAllEventsAdmin(),
     getEventIdsWithHistory(),
@@ -398,6 +403,53 @@ function EventTable({
           )}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+/**
+ * Event administrators without the global events scope (0034): their events
+ * only, with the details editor. Creating, archiving, deleting, featuring,
+ * pricing and exports stay with global events admins.
+ */
+async function AssignedEventsList({ ids }: { ids: string[] }) {
+  const events = await getEventsByIds(ids);
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="font-display text-2xl font-semibold text-foreground">Your events</h1>
+        <p className="mt-1 text-sm text-muted">
+          Edit the details and private WhatsApp link of the events you administer.
+        </p>
+      </div>
+      {events.length === 0 ? (
+        <EmptyState title="No events assigned" description="Ask the super admin to assign you an event." />
+      ) : (
+        <ul className="space-y-3">
+          {events.map((e) => (
+            <li
+              key={e.id}
+              className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-surface p-4"
+            >
+              <div className="min-w-0">
+                <p className="truncate font-medium text-foreground">{e.title}</p>
+                <p className="text-xs text-muted">
+                  {e.archived_at ? "Archived · " : ""}
+                  {e.event_date ? formatEventDate(e.event_date) : "Date TBA"}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <ButtonLink href={`/admin/registrations?event=${e.id}`} variant="ghost" size="sm">
+                  Registrations
+                </ButtonLink>
+                <ButtonLink href={`/admin/events/${e.id}/edit`} variant="secondary" size="sm">
+                  <Pencil className="size-4" aria-hidden /> Edit details
+                </ButtonLink>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

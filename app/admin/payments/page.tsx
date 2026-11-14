@@ -4,15 +4,20 @@ import { CheckCircle2, ArrowRight } from "lucide-react";
 import { PaymentBadge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/misc";
 import { getPaymentQueue } from "@/lib/data/admin";
+import { getPaymentQueueForEvents } from "@/lib/data/event-admin";
 import { formatEventDate, formatINR } from "@/lib/utils";
-import { requireScope } from "@/lib/auth";
+import { eventIdsWith, requireEventArea } from "@/lib/auth";
 import { teamDisplay } from "@/lib/team-label";
 
 export const metadata: Metadata = { title: "Admin · Payments" };
 
 export default async function AdminPaymentsPage() {
-  await requireScope("payments");
-  const queue = await getPaymentQueue();
+  // Global payments scope: the whole queue. Payments assignees (0034): only
+  // their events' payments.
+  const access = await requireEventArea("payments");
+  const allowed = eventIdsWith(access, "payments");
+  const queue =
+    allowed === "all" ? await getPaymentQueue() : await getPaymentQueueForEvents(allowed);
 
   return (
     <div className="space-y-6">

@@ -4,12 +4,14 @@ import { Container } from "@/components/ui/container";
 import { DashboardNav } from "@/components/dashboard/dashboard-nav";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { Button } from "@/components/ui/button";
-import { requireProfile } from "@/lib/auth";
+import { canOpenAdmin, requireProfile } from "@/lib/auth";
 import { signOut } from "@/lib/actions/auth";
 import { SITE } from "@/lib/constants";
 
 export default async function DashboardLayout({ children }: LayoutProps<"/">) {
   const profile = await requireProfile();
+  // Global admins and per-event administrators (0034).
+  const showAdmin = await canOpenAdmin(profile);
 
   return (
     <div className="min-h-svh">
@@ -23,7 +25,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/">) {
           </Link>
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            {profile.role === "admin" && (
+            {showAdmin && (
               <Link
                 href="/admin"
                 className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-surface-2"

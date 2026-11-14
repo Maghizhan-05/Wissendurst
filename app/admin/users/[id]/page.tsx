@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { Badge, PaymentBadge, RegistrationBadge } from "@/components/ui/badge";
 import { AdminAccessForm } from "@/components/admin/admin-access-form";
+import { EventAdminAccessEditor } from "@/components/admin/event-admin-access-editor";
+import { getAssignableEvents, getAssignmentsOfUser, getEventsByIds } from "@/lib/data/event-admin";
 import { ApprovalActions } from "@/components/admin/approval-actions";
 import { EmptyState } from "@/components/ui/misc";
 import { getUserWithRegistrations } from "@/lib/data/admin";
@@ -21,6 +23,9 @@ export default async function AdminUserPage({
   const data = await getUserWithRegistrations(id);
   if (!data) notFound();
   const { profile, registrations } = data;
+
+  // Super admin only: per-event administration of this account (0034).
+  const eventAccess = viewer.is_super_admin ? await loadEventAccess(profile.id) : null;
 
   const approvalTone =
     profile.approval_status === "approved"
@@ -118,6 +123,32 @@ export default async function AdminUserPage({
         </div>
       )}
 
+      {eventAccess && (
+        <div className="rounded-2xl border border-border bg-surface p-6">
+          <h2 className="font-display text-lg font-semibold text-foreground">
+            Event administration
+          </h2>
+          <p className="mt-1 text-sm text-muted">
+            Let this person administer single events, in addition to any access above.
+            Event details &amp; registrations: view the event&rsquo;s confirmed registrations and
+            contact details, and edit its description, rules, schedule and private WhatsApp
+            link. Payment reviews: verify or reject the event&rsquo;s payments. The role, scopes
+            and participant ID don&rsquo;t change.
+          </p>
+          <div className="mt-4 max-w-xl">
+            {profile.approval_status === "approved" ? (
+              <EventAdminAccessEditor
+                userId={profile.id}
+                assignments={eventAccess.assignments}
+                assignable={eventAccess.assignable}
+              />
+            ) : (
+              <p className="text-sm text-muted">Only approved accounts can administer events.</p>
+            )}
+          </div>
+        </div>
+      )}
+
       <div>
         <h2 className="font-display text-lg font-semibold text-foreground">
           Confirmed registrations ({registrations.length})
@@ -168,4 +199,27 @@ export default async function AdminUserPage({
       </div>
     </div>
   );
+}
+
+async function loadEventAccess(profileId: string) {
+  const [rows, assignableEvents] = await Promise.all([
+    getAssignmentsOfUser(profileId),
+    getAssignableEvents(),
+  ]);
+  const events = await getEventsByIds(rows.map((r) => r.event_id));
+  const byId = new Map(events.map((e) => [e.id, e]));
+  const assigned = new Set(rows.map((r) => r.event_id));
+  return {
+    assignments: rows
+      .map((r) => ({
+        eventId: r.event_id,
+        title: byId.get(r.event_id)?.title ?? "Unknown event",
+        archived: Boolean(byId.get(r.event_id)?.archived_at),
+        permissions: r.permissions,
+      }))
+      .sort((a, b) => a.title.localeCompare(b.title)),
+    assignable: assignableEvents
+      .filter((e) => !assigned.has(e.id))
+      .map((e) => ({ id: e.id, title: e.title, archived: Boolean(e.archived_at) })),
+  };
 }

@@ -1,11 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Eye } from "lucide-react";
+import { Contact, Eye } from "lucide-react";
 import { PaymentBadge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/misc";
 import { getRegistrationsAdmin, getAllEventsAdmin } from "@/lib/data/admin";
+import {
+  getEventsByIds,
+  getRegistrationsForEvents,
+  type RosterRow,
+} from "@/lib/data/event-admin";
 import { formatEventDate } from "@/lib/utils";
-import { requireScope } from "@/lib/auth";
+import { canOnEvent, eventIdsWith, requireEventArea } from "@/lib/auth";
 import { teamLabel } from "@/lib/team-label";
 import { groupRegistrations } from "@/lib/registration-groups";
 
@@ -14,17 +19,26 @@ export const metadata: Metadata = { title: "Admin · Registrations" };
 export default async function AdminRegistrationsPage({
   searchParams,
 }: PageProps<"/admin/registrations">) {
-  await requireScope("events");
+  // Global events scope: every event. Event administrators (0034): only the
+  // events they hold the events permission on.
+  const access = await requireEventArea("events");
+  const allowed = eventIdsWith(access, "events");
   const sp = await searchParams;
+  const requested = typeof sp.event === "string" ? sp.event : undefined;
   const filters = {
-    event: typeof sp.event === "string" ? sp.event : undefined,
+    event:
+      allowed === "all" || (requested && allowed.includes(requested)) ? requested : undefined,
   };
 
-  const [rows, events] = await Promise.all([
-    getRegistrationsAdmin(filters),
-    getAllEventsAdmin(),
-  ]);
+  const [rows, events]: [RosterRow[], { id: string; title: string }[]] =
+    allowed === "all"
+      ? await Promise.all([getRegistrationsAdmin(filters), getAllEventsAdmin()])
+      : await Promise.all([
+          getRegistrationsForEvents(filters.event ? [filters.event] : allowed),
+          getEventsByIds(allowed),
+        ]);
   const { teams, singles } = groupRegistrations(rows);
+  const canReviewPayment = (eventId: string) => canOnEvent(access, eventId, "payments");
 
   const selectCls =
     "rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground";
@@ -111,13 +125,21 @@ export default async function AdminRegistrationsPage({
                             </li>
                           ))}
                         </ul>
-                        <div className="mt-3 flex justify-end">
+                        <div className="mt-3 flex justify-end gap-2">
                           <Link
-                            href={`/admin/payments/${t.head.id}`}
+                            href={`/admin/registrations/${t.head.id}`}
                             className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-2"
                           >
-                            <Eye className="size-3.5" aria-hidden /> Review
+                            <Contact className="size-3.5" aria-hidden /> Contact details
                           </Link>
+                          {canReviewPayment(t.head.event_id) && (
+                            <Link
+                              href={`/admin/payments/${t.head.id}`}
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-2"
+                            >
+                              <Eye className="size-3.5" aria-hidden /> Payment
+                            </Link>
+                          )}
                         </div>
                       </div>
                     </details>
@@ -142,7 +164,7 @@ export default async function AdminRegistrationsPage({
                       <th className="px-4 py-3 font-medium">Event</th>
                       <th className="px-4 py-3 font-medium">Payment</th>
                       <th className="px-4 py-3 font-medium">Date</th>
-                      <th className="px-4 py-3 text-right font-medium">Review</th>
+                      <th className="px-4 py-3 text-right font-medium">Details</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -158,12 +180,22 @@ export default async function AdminRegistrationsPage({
                         </td>
                         <td className="px-4 py-3 text-xs text-muted">{formatEventDate(r.registered_at.slice(0, 10))}</td>
                         <td className="px-4 py-3 text-right">
-                          <Link
-                            href={`/admin/payments/${r.id}`}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-2"
-                          >
-                            <Eye className="size-3.5" aria-hidden /> Review
-                          </Link>
+                          <span className="inline-flex justify-end gap-2">
+                            <Link
+                              href={`/admin/registrations/${r.id}`}
+                              className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-2"
+                            >
+                              <Contact className="size-3.5" aria-hidden /> Contact
+                            </Link>
+                            {canReviewPayment(r.event_id) && (
+                              <Link
+                                href={`/admin/payments/${r.id}`}
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-2"
+                              >
+                                <Eye className="size-3.5" aria-hidden /> Payment
+                              </Link>
+                            )}
+                          </span>
                         </td>
                       </tr>
                     ))}

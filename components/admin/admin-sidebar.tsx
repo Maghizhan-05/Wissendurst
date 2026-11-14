@@ -14,7 +14,7 @@ import {
   Ticket,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { AdminScope } from "@/lib/constants";
+import type { AdminScope, EventPermission } from "@/lib/constants";
 
 type NavLink = {
   href: string;
@@ -22,16 +22,21 @@ type NavLink = {
   icon: typeof LayoutDashboard;
   exact?: boolean;
   scope?: AdminScope;
+  /** Also shown to accounts with this permission on an assigned event (0034). */
+  eventArea?: EventPermission;
   badge?: number;
 };
 
 export function AdminSidebar({
   scopes,
   isSuper,
+  eventAreas = { events: false, payments: false },
   pendingCount = 0,
 }: {
   scopes: AdminScope[];
   isSuper: boolean;
+  /** Global scope OR an event assignment grants the area (0034). */
+  eventAreas?: Record<EventPermission, boolean>;
   pendingCount?: number;
 }) {
   const pathname = usePathname();
@@ -39,9 +44,9 @@ export function AdminSidebar({
   const links: NavLink[] = [
     { href: "/admin", label: "Overview", icon: LayoutDashboard, exact: true },
     { href: "/admin/approvals", label: "Approvals", icon: UserCheck, scope: "signups", badge: pendingCount },
-    { href: "/admin/events", label: "Events", icon: CalendarCog, scope: "events" },
-    { href: "/admin/registrations", label: "Registrations", icon: ClipboardList, scope: "events" },
-    { href: "/admin/payments", label: "Payments", icon: BadgeIndianRupee, scope: "payments" },
+    { href: "/admin/events", label: "Events", icon: CalendarCog, scope: "events", eventArea: "events" },
+    { href: "/admin/registrations", label: "Registrations", icon: ClipboardList, scope: "events", eventArea: "events" },
+    { href: "/admin/payments", label: "Payments", icon: BadgeIndianRupee, scope: "payments", eventArea: "payments" },
     { href: "/admin/general-registration", label: "General Registration", icon: Ticket, scope: "payments" },
     { href: "/admin/collections", label: "Collections", icon: TrendingUp, scope: "payments" },
     { href: "/admin/users", label: "Users", icon: Users, scope: "signups" },
@@ -49,7 +54,11 @@ export function AdminSidebar({
   ];
 
   const visible = links.filter(
-    (l) => !l.scope || isSuper || scopes.includes(l.scope),
+    (l) =>
+      !l.scope ||
+      isSuper ||
+      scopes.includes(l.scope) ||
+      (l.eventArea !== undefined && eventAreas[l.eventArea]),
   );
 
   return (

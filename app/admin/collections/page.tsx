@@ -33,7 +33,8 @@ export default async function AdminCollectionsPage() {
         </h1>
         <p className="mt-1 text-sm text-muted">
           Amount collected per event — counts approved payments only. Broader
-          events roll up their sub-events.
+          events roll up their sub-events. Registration counts treat each solo
+          registration or whole team as one.
         </p>
       </div>
 
@@ -55,7 +56,12 @@ export default async function AdminCollectionsPage() {
           value={`${Math.round(overall)}%`}
           tone="brand"
         />
-        <StatCard label="Paid registrations" value={totalVerified} tone="success" />
+        <StatCard
+          label="Paid registrations"
+          value={totalVerified}
+          tone="success"
+          hint="A solo entry or a whole team counts once"
+        />
       </div>
 
       {groups.length === 0 ? (

@@ -6,7 +6,11 @@ import { PaymentBadge, RegistrationBadge } from "@/components/ui/badge";
 import { PaymentReviewActions } from "@/components/admin/payment-review-actions";
 import { getRegistrationAdmin } from "@/lib/data/admin";
 import { getScreenshotSignedUrl } from "@/lib/actions/admin";
-import { requireScope } from "@/lib/auth";
+import {
+  getRegistrationForPaymentReview,
+  signedScreenshotUrlForAuthorizedRegistration,
+} from "@/lib/data/event-admin";
+import { canOnEvent, hasGlobalScope, requireEventArea } from "@/lib/auth";
 import { formatEventDate, formatINR } from "@/lib/utils";
 import { teamDisplay } from "@/lib/team-label";
 
@@ -15,18 +19,31 @@ export const metadata: Metadata = { title: "Admin · Payment review" };
 export default async function PaymentReviewPage({
   params,
 }: PageProps<"/admin/payments/[id]">) {
-  await requireScope("payments");
+  const access = await requireEventArea("payments");
   const { id } = await params;
-  const reg = await getRegistrationAdmin(id);
-  if (!reg) notFound();
 
-  const screenshotUrl = reg.payment_screenshot
-    ? await getScreenshotSignedUrl(reg.payment_screenshot)
-    : null;
-
-  const original = reg.duplicate_of
-    ? await getRegistrationAdmin(reg.duplicate_of)
-    : null;
+  let reg;
+  let screenshotUrl: string | null = null;
+  let original;
+  if (hasGlobalScope(access, "payments")) {
+    // Global payments scope: unchanged path.
+    reg = await getRegistrationAdmin(id);
+    if (!reg) notFound();
+    screenshotUrl = reg.payment_screenshot
+      ? await getScreenshotSignedUrl(reg.payment_screenshot)
+      : null;
+    original = reg.duplicate_of ? await getRegistrationAdmin(reg.duplicate_of) : null;
+  } else {
+    // Payments assignee (0034): only registrations of its own events; another
+    // event's registration is indistinguishable from a missing one.
+    reg = await getRegistrationForPaymentReview(id);
+    if (!reg || !canOnEvent(access, reg.event_id, "payments")) notFound();
+    screenshotUrl = await signedScreenshotUrlForAuthorizedRegistration(reg.payment_screenshot);
+    const first = reg.duplicate_of ? await getRegistrationForPaymentReview(reg.duplicate_of) : null;
+    // The first use of a duplicate UTR is named only when it is in an event
+    // this account also reviews.
+    original = first && canOnEvent(access, first.event_id, "payments") ? first : null;
+  }
 
   return (
     <div className="mx-auto max-w-5xl">

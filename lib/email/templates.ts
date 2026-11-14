@@ -1,5 +1,6 @@
 import { formatEventDate, formatINR, formatTime, siteUrl } from "@/lib/utils";
 import type { EventRow } from "@/types/database";
+import { whatsappGroupEmailBlock } from "./whatsapp";
 
 /** Shared branded shell for all transactional emails (email-client safe). */
 function shell(heading: string, bodyHtml: string, cta?: { label: string; href: string }): string {
@@ -97,6 +98,8 @@ export function registrationEmail(
   amountPaise: number,
   /** Team registrations only (undefined = not a team). */
   teamName?: string | null,
+  /** Private event WhatsApp group (0034); shown only once the spot is confirmed. */
+  whatsappUrl?: string | null,
 ) {
   const when = `${formatEventDate(event.event_date)}${
     event.start_time ? ` · ${formatTime(event.start_time)}` : ""
@@ -118,7 +121,8 @@ export function registrationEmail(
          paid
            ? "No payment is due — your spot is confirmed."
            : "Next step: complete payment and upload your screenshot so organizers can verify your spot."
-       }</p>`,
+       }</p>
+       ${paid ? whatsappGroupEmailBlock(whatsappUrl) : ""}`,
       paid
         ? { label: "View my events", href: siteUrl("/dashboard/registrations") }
         : { label: "Complete payment", href: siteUrl("/dashboard/registrations") },
@@ -171,6 +175,8 @@ export function paymentConfirmedEmail(
   event: EventRow,
   /** Team registrations only (undefined = not a team). */
   teamName?: string | null,
+  /** Private event WhatsApp group (0034). */
+  whatsappUrl?: string | null,
 ) {
   const when = `${formatEventDate(event.event_date)}${
     event.start_time ? ` · ${formatTime(event.start_time)}` : ""
@@ -186,6 +192,7 @@ export function paymentConfirmedEmail(
          <tr><td style="padding:6px 0;color:#627775;">Venue</td><td style="padding:6px 0;text-align:right;">${event.venue ?? "TBA"}</td></tr>
          ${teamRow(teamName)}
        </table>
+       ${whatsappGroupEmailBlock(whatsappUrl)}
        <p style="line-height:1.6;color:#627775;">See you there!</p>`,
       { label: "View my events", href: siteUrl("/dashboard/registrations") },
     ),

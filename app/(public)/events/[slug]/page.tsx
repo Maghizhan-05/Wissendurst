@@ -30,6 +30,7 @@ import {
   soloDiscounts,
 } from "@/lib/data/events";
 import { teamPriceSummary } from "@/lib/events/team-pricing";
+import { normalizeStoredRules } from "@/lib/events/rules";
 import { PRICE_WINDOW_LABELS, adjustedPrice } from "@/lib/events/price-windows";
 import { formatHoldDeadline } from "@/lib/payment-intent";
 import {
@@ -65,6 +66,8 @@ export default async function EventPage({
   const { slug } = await params;
   const event = await getEventBySlug(slug);
   if (!event) notFound();
+  // Stored paragraphs; old one-rule-per-line arrays read the same way.
+  const rules = normalizeStoredRules(event.rules);
 
   const subEvents = await getSubEvents(event.id);
 
@@ -304,21 +307,20 @@ export default async function EventPage({
               </section>
             )}
 
-            {event.rules.length > 0 && (
+            {rules.length > 0 && (
               <section>
                 <h2 className="flex items-center gap-2 font-display text-2xl font-semibold text-foreground">
                   <ListChecks className="size-5 text-brand" /> Rules
                 </h2>
-                <ul className="mt-5 space-y-3">
-                  {event.rules.map((rule, i) => (
-                    <li key={i} className="flex gap-3 text-muted">
-                      <span className="mt-0.5 font-mono text-xs text-brand">
-                        {String(i + 1).padStart(2, "0")}
-                      </span>
-                      <span>{rule}</span>
-                    </li>
+                {/* Admin-authored paragraphs as written: no generated numbering;
+                    line breaks inside a paragraph stay visible (D-022). */}
+                <div className="mt-5 space-y-4 text-base leading-relaxed text-muted">
+                  {rules.map((paragraph, i) => (
+                    <p key={i} className="whitespace-pre-line break-words">
+                      {paragraph}
+                    </p>
                   ))}
-                </ul>
+                </div>
               </section>
             )}
           </div>

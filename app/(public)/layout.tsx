@@ -1,6 +1,6 @@
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
-import { getProfile } from "@/lib/auth";
+import { canOpenAdmin, getProfile } from "@/lib/auth";
 import { getLandingContent, getSocialSettings } from "@/lib/data/settings";
 import { enabledSocialLinks } from "@/lib/content/social";
 import {
@@ -18,12 +18,14 @@ export default async function PublicLayout({
     getGeneralRegistrationSettings(),
     getSocialSettings(),
   ]);
+  // Global admins and per-event administrators (0034) get the Admin link.
+  const showAdmin = await canOpenAdmin(profile);
   const navUser = profile
     ? {
         participantId:
           profile.participant_id ??
           (profile.approval_status === "rejected" ? "My application" : "Dashboard"),
-        isAdmin: profile.role === "admin",
+        isAdmin: showAdmin,
         showGeneralRegistration:
           isGeneralRegistrationOpen(grSettings) &&
           canTakeGeneralRegistration(profile.participant_id, profile.approval_status),

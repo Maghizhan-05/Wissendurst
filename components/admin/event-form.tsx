@@ -4,6 +4,8 @@ import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Select, Textarea } from "@/components/ui/field";
 import { slugify } from "@/lib/utils";
+import { rulesToEditorText } from "@/lib/events/rules";
+import { RULES_HINT, RULES_PLACEHOLDER } from "@/components/admin/rules-guidance";
 import { activeCategories, type EventCategoryInfo } from "@/lib/events/categories";
 import type { AdminActionState } from "@/lib/actions/admin";
 import type { OfferTargetOption } from "@/lib/data/admin";
@@ -176,13 +178,13 @@ export function EventForm({
         <Textarea id="description" name="description" defaultValue={event?.description} rows={5} />
       </Field>
 
-      <Field label="Rules" htmlFor="rules" hint="One rule per line">
+      <Field label="Rules" htmlFor="rules" hint={RULES_HINT}>
         <Textarea
           id="rules"
           name="rules"
-          defaultValue={event?.rules?.join("\n")}
-          rows={5}
-          placeholder={"Teams of two\nCarry your college ID"}
+          defaultValue={rulesToEditorText(event?.rules)}
+          rows={8}
+          placeholder={RULES_PLACEHOLDER}
         />
       </Field>
 

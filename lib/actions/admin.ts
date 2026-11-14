@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireScope, requireSuperAdmin } from "@/lib/auth";
+import { requireEventArea, requireScope, requireSuperAdmin } from "@/lib/auth";
+import { parseRulesText, rulesError } from "@/lib/events/rules";
 import {
   eventOffersSchema,
   eventSchema,
@@ -32,10 +33,8 @@ export type AdminActionState =
   | null;
 
 function rowFromInput(input: EventInput) {
-  const rules = (input.rules ?? "")
-    .split("\n")
-    .map((r) => r.trim())
-    .filter(Boolean);
+  // Paragraphs separated by blank lines; line breaks inside are kept (D-022).
+  const rules = parseRulesText(input.rules);
 
   return {
     title: input.title,
@@ -354,6 +353,8 @@ export async function createEvent(
     const first = Object.values(parsed.error.flatten().fieldErrors).flat()[0];
     return { ok: false, error: first ?? "Please check the form." };
   }
+  const rulesProblem = rulesError(parseRulesText(parsed.data.rules));
+  if (rulesProblem) return { ok: false, error: rulesProblem };
 
   const offers = parseOffers(formData);
   if (!offers.ok) return offers;
@@ -420,6 +421,8 @@ export async function updateEvent(
     const first = Object.values(parsed.error.flatten().fieldErrors).flat()[0];
     return { ok: false, error: first ?? "Please check the form." };
   }
+  const rulesProblem = rulesError(parseRulesText(parsed.data.rules));
+  if (rulesProblem) return { ok: false, error: rulesProblem };
 
   const offers = parseOffers(formData, id);
   if (!offers.ok) return offers;
@@ -597,7 +600,9 @@ export async function toggleEventFlag(formData: FormData): Promise<void> {
 export async function setPaymentStatus(
   formData: FormData,
 ): Promise<AdminActionState> {
-  await requireScope("payments");
+  // Global payments scope or a payments assignment on some event; the RPC
+  // checks the permission on this registration's own event (0034).
+  await requireEventArea("payments");
   const registrationId = String(formData.get("registration_id") ?? "");
   const status = String(formData.get("status") ?? "");
   const note = String(formData.get("note") ?? "").trim() || null;
@@ -605,7 +610,10 @@ export async function setPaymentStatus(
     return { ok: false, error: "Invalid request." };
 
   const supabase = await createClient();
-  const { data: before } = await supabase
+  // Previous status decides which email (if any) follows. Read server-side:
+  // event assignees can't read registrations under RLS, and nothing is shown
+  // or sent unless the permission-checked RPC below succeeds.
+  const { data: before } = await createAdminClient()
     .from("registrations")
     .select("payment_status")
     .eq("id", registrationId)

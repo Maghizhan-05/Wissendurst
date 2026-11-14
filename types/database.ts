@@ -6,6 +6,7 @@
 import type {
   AdminScope,
   ApprovalStatus,
+  EventPermission,
   EventCategory,
   PaymentStatus,
   RegistrationStatus,
@@ -59,7 +60,7 @@ export interface EventRow {
   category: EventCategory; // event_categories.slug (FK, immutable; 0027)
   hero_image: string | null;
   thumbnail_image: string | null;
-  rules: string[]; // jsonb array of rule lines
+  rules: string[]; // jsonb array of rule paragraphs (D-022; may contain \n)
   eligibility: string | null;
   registration_fee: number; // paise
   venue: string | null;
@@ -84,6 +85,20 @@ export interface EventRow {
   archived_by: string | null; // admin who archived it
   /** Included in General Registration (0023); set only via the admin RPC. */
   general_registration_covered: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Per-event administrator assignment (0034). Additive to global admin scopes;
+ * readable by its own account and the super admin; written only via
+ * super_set_event_admin.
+ */
+export interface EventAdminAssignmentRow {
+  event_id: string;
+  profile_id: string;
+  permissions: EventPermission[];
+  assigned_by: string | null;
   created_at: string;
   updated_at: string;
 }

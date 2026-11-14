@@ -3,11 +3,30 @@ import Link from "next/link";
 import { TriangleAlert, ArrowRight } from "lucide-react";
 import { StatCard } from "@/components/ui/card";
 import { getAdminStats } from "@/lib/data/admin";
-import { formatINR } from "@/lib/utils";
+import { getEventsByIds } from "@/lib/data/event-admin";
+import { requireAdminAccess, type AdminAccess } from "@/lib/auth";
+import { EVENT_PERMISSION_LABELS } from "@/lib/constants";
+import { formatEventDate, formatINR } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Admin · Overview" };
 
 export default async function AdminOverviewPage() {
+  const access = await requireAdminAccess();
+  // Accounts that only administer single events see just their events.
+  if (!access.isAdmin) {
+    return (
+      <div className="space-y-8">
+        <div>
+          <h1 className="font-display text-2xl font-semibold text-foreground">
+            Overview
+          </h1>
+          <p className="mt-1 text-sm text-muted">The events you administer.</p>
+        </div>
+        <AssignedEvents access={access} />
+      </div>
+    );
+  }
+
   const stats = await getAdminStats();
   const maxCount = Math.max(1, ...stats.perEvent.map((e) => e.count));
 
@@ -18,7 +37,8 @@ export default async function AdminOverviewPage() {
           Overview
         </h1>
         <p className="mt-1 text-sm text-muted">
-          Live snapshot of registrations and payments.
+          Live snapshot of registrations and payments. Registration figures
+          count each solo registration or whole team once.
         </p>
       </div>
 
@@ -81,6 +101,68 @@ export default async function AdminOverviewPage() {
           </ul>
         )}
       </section>
+
+      {access.assignments.length > 0 && <AssignedEvents access={access} />}
     </div>
+  );
+}
+
+/** Per-event assignments of this account (0034), with their entry points. */
+async function AssignedEvents({ access }: { access: AdminAccess }) {
+  const events = await getEventsByIds(access.assignments.map((a) => a.eventId));
+  const permsOf = new Map(access.assignments.map((a) => [a.eventId, a.permissions]));
+  return (
+    <section aria-labelledby="assigned-events" className="rounded-2xl border border-border bg-surface p-6">
+      <h2 id="assigned-events" className="font-display text-lg font-semibold text-foreground">
+        Your events
+      </h2>
+      {events.length === 0 ? (
+        <p className="mt-4 text-sm text-muted">No events are assigned to you.</p>
+      ) : (
+        <ul className="mt-4 divide-y divide-border">
+          {events.map((e) => {
+            const perms = permsOf.get(e.id) ?? [];
+            return (
+              <li key={e.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-foreground">{e.title}</p>
+                  <p className="text-xs text-muted">
+                    {e.archived_at ? "Archived · " : ""}
+                    {e.event_date ? formatEventDate(e.event_date) : "Date TBA"} ·{" "}
+                    {perms.map((p) => EVENT_PERMISSION_LABELS[p]).join(", ")}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2 text-sm">
+                  {perms.includes("events") && (
+                    <>
+                      <Link
+                        href={`/admin/registrations?event=${e.id}`}
+                        className="rounded-lg border border-border px-3 py-1.5 font-medium text-foreground hover:bg-surface-2"
+                      >
+                        Registrations
+                      </Link>
+                      <Link
+                        href={`/admin/events/${e.id}/edit`}
+                        className="rounded-lg border border-border px-3 py-1.5 font-medium text-foreground hover:bg-surface-2"
+                      >
+                        Edit details
+                      </Link>
+                    </>
+                  )}
+                  {perms.includes("payments") && (
+                    <Link
+                      href="/admin/payments"
+                      className="rounded-lg border border-border px-3 py-1.5 font-medium text-foreground hover:bg-surface-2"
+                    >
+                      Payments
+                    </Link>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }

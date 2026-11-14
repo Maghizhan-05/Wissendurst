@@ -94,6 +94,24 @@ export async function notifyRejection(userId: string): Promise<void> {
 }
 
 /**
+ * The event's private WhatsApp group link (server-only table, 0034). A failed
+ * lookup is logged and the confirmation still goes out without the link.
+ */
+async function loadEventWhatsAppUrl(eventId: string): Promise<string | null> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("event_private_settings")
+    .select("whatsapp_group_url")
+    .eq("event_id", eventId)
+    .maybeSingle();
+  if (error) {
+    console.error("notify: event WhatsApp link lookup failed:", error);
+    return null;
+  }
+  return (data as { whatsapp_group_url: string | null } | null)?.whatsapp_group_url ?? null;
+}
+
+/**
  * Sends the "you're confirmed" email for a registration that has just become
  * confirmed — a free / fully discounted registration, or a verified payment.
  * A team gets one email per (non-cancelled) member. Never call this for a
@@ -132,14 +150,18 @@ export async function notifyRegistrationConfirmed(
     }
   }
 
+  // Private event WhatsApp group (0034): only in this successful-registration
+  // email, to each confirmed participant / team member.
+  const whatsappUrl = await loadEventWhatsAppUrl(data.event.id);
+
   for (const profileId of recipientIds) {
     const p =
       profileId === data.profile.id ? data.profile : await loadProfile(profileId);
     if (!p) continue;
     const { subject, html } =
       teamAmount === 0
-        ? registrationEmail(p.full_name, p.participant_id ?? "", data.event, 0, teamName)
-        : paymentConfirmedEmail(p.full_name, data.event, teamName);
+        ? registrationEmail(p.full_name, p.participant_id ?? "", data.event, 0, teamName, whatsappUrl)
+        : paymentConfirmedEmail(p.full_name, data.event, teamName, whatsappUrl);
     try {
       await sendMail({ to: p.email, subject, html });
     } catch (e) {
