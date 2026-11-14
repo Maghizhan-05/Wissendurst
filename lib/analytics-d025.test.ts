@@ -1,7 +1,7 @@
 // Unit tests — run with `npm run test:unit` (node --test, no build step).
 // D-025: Vercel Web Analytics gate + single mount, PostHog exception
 // redaction, single pageview source, and the super-admin dashboard
-// (fail-closed config, typed aggregate parsing, authorization, boundaries).
+// (dashboard tests moved to analytics-d026.test.ts).
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -10,17 +10,6 @@ import { createVercelBeforeSend, VERCEL_DUPLICATE_WINDOW_MS } from "./analytics/
 import { redactText, sanitizeExceptionList, sanitizeFrameFilename } from "./analytics/redact.ts";
 import { sanitizeEvent } from "./analytics/sanitize.ts";
 import { buildPostHogConfig } from "./analytics/posthog-options.ts";
-import {
-  DASHBOARD_QUERIES,
-  POSTHOG_EU_APP_HOST,
-  loadDashboard,
-  parseDashboardConfig,
-  parseExceptionTypes,
-  parseFunnel,
-  parseTopPaths,
-  parseTraffic,
-  type FetchLike,
-} from "./analytics/dashboard.ts";
 
 const ROOT = new URL("../", import.meta.url).pathname;
 const read = (f: string) => readFileSync(join(ROOT, f), "utf8");
@@ -260,106 +249,5 @@ test("lifecycle: live event gate, re-grant re-opts in, remount reads the live co
   assert.match(bridge, /isAnalyticsRoute\(window\.location\.pathname\)/);
 });
 
-// ── super-admin dashboard ────────────────────────────────────────────────────
-const KEY = "phx_" + "A1b2C3d4".repeat(5);
-
-test("dashboard config fails closed: missing, malformed, or public token", () => {
-  assert.deepEqual(parseDashboardConfig({}), { ok: false, reason: "missing" });
-  assert.deepEqual(parseDashboardConfig({ POSTHOG_PERSONAL_API_KEY: KEY }), { ok: false, reason: "missing" });
-  assert.deepEqual(parseDashboardConfig({ POSTHOG_PERSONAL_API_KEY: "phc_" + "x".repeat(30), POSTHOG_PROJECT_ID: "123" }), { ok: false, reason: "invalid" });
-  assert.deepEqual(parseDashboardConfig({ POSTHOG_PERSONAL_API_KEY: KEY, POSTHOG_PROJECT_ID: "12a" }), { ok: false, reason: "invalid" });
-  assert.deepEqual(parseDashboardConfig({ POSTHOG_PERSONAL_API_KEY: ` ${KEY} `, POSTHOG_PROJECT_ID: " 98765 " }), {
-    ok: true,
-    config: { apiKey: KEY, projectId: "98765" },
-  });
-});
-
-test("dashboard queries are aggregates only (no person/distinct/session rows)", () => {
-  for (const [name, q] of Object.entries(DASHBOARD_QUERIES)) {
-    assert.match(q, /^SELECT /, name);
-    assert.doesNotMatch(q, /distinct_id|person|\$ip|properties\.\$current_url|\$exception_list(?!, 1, 'type')|\$elements|\$snapshot|SELECT \*/i, name);
-    assert.match(q, /count\(|countIf\(/, name);
-    assert.match(q, /INTERVAL 30 DAY/, name);
-  }
-});
-
-test("typed aggregate parsing rejects malformed rows and filters non-public paths", () => {
-  assert.deepEqual(parseTraffic([[120, 45]]), { pageviews: 120, sessions: 45 });
-  assert.equal(parseTraffic([["x", 1]]), null);
-  assert.equal(parseTraffic([]), null);
-  assert.deepEqual(
-    parseTopPaths([["/events", 50], ["/dashboard", 9], ["/events/", 5], ["/admin/analytics", 3], [null, 2], ["/events/robotics", 7]]),
-    [{ path: "/events", views: 55 }, { path: "/events/robotics", views: 7 }],
-  );
-  assert.equal(parseTopPaths([["/events", -1]]), null);
-  assert.deepEqual(parseFunnel([[10, 4]]), { started: 10, confirmed: 4, rate: 0.4 });
-  assert.deepEqual(parseFunnel([[0, 0]]), { started: 0, confirmed: 0, rate: null });
-  assert.deepEqual(parseExceptionTypes([["TypeError", 3], ["", 1], ["Error for a@b.co W27/E/0001", 2]]), [
-    { type: "TypeError", total: 3 },
-    { type: "Unknown", total: 1 },
-    { type: "Error for [email] [participant-id]", total: 2 },
-  ]);
-  assert.equal(parseExceptionTypes([["TypeError", "x"]]), null);
-});
-
-function fakeFetch(handler: (q: string) => { status: number; body?: unknown }) {
-  const calls: { url: string; auth: string; body: string }[] = [];
-  const f: FetchLike = async (url, init) => {
-    calls.push({ url, auth: init.headers.Authorization, body: init.body });
-    const q = (JSON.parse(init.body) as { query: { query: string } }).query.query;
-    const r = handler(q);
-    return { ok: r.status >= 200 && r.status < 300, status: r.status, json: async () => r.body };
-  };
-  return { f, calls };
-}
-
-test("dashboard client: not configured, rejected, partial failure and success", async () => {
-  const none = fakeFetch(() => ({ status: 200, body: { results: [] } }));
-  assert.deepEqual(await loadDashboard({}, none.f), { state: "not-configured", reason: "missing" });
-  assert.equal(none.calls.length, 0, "no request without configuration");
-
-  const rejected = fakeFetch(() => ({ status: 401, body: { detail: "Invalid key" } }));
-  assert.deepEqual(await loadDashboard({ POSTHOG_PERSONAL_API_KEY: KEY, POSTHOG_PROJECT_ID: "42" }, rejected.f), { state: "rejected" });
-
-  const ok = fakeFetch((q) => {
-    if (q === DASHBOARD_QUERIES.traffic) return { status: 200, body: { results: [[100, 40]] } };
-    if (q === DASHBOARD_QUERIES.topPaths) return { status: 200, body: { results: [["/", 60], ["/admin", 5]] } };
-    if (q === DASHBOARD_QUERIES.funnel) return { status: 200, body: { results: [[8, 2]] } };
-    if (q === DASHBOARD_QUERIES.exceptions) return { status: 500, body: {} };
-    return { status: 200, body: { results: "malformed" } };
-  });
-  const res = await loadDashboard({ POSTHOG_PERSONAL_API_KEY: KEY, POSTHOG_PROJECT_ID: "42" }, ok.f);
-  assert.equal(res.state, "ok");
-  if (res.state !== "ok") return;
-  assert.deepEqual(res.data.traffic, { ok: true, data: { pageviews: 100, sessions: 40 } });
-  assert.deepEqual(res.data.topPaths, { ok: true, data: [{ path: "/", views: 60 }] });
-  assert.deepEqual(res.data.funnel, { ok: true, data: { started: 8, confirmed: 2, rate: 0.25 } });
-  assert.deepEqual(res.data.exceptions, { ok: false });
-  assert.deepEqual(res.data.exceptionTypes, { ok: false });
-  assert.ok(ok.calls.every((c) => c.url === `${POSTHOG_EU_APP_HOST}/api/projects/42/query/` && c.auth === `Bearer ${KEY}`));
-  assert.ok(ok.calls.every((c) => JSON.parse(c.body).query.kind === "HogQLQuery"));
-});
-
-test("/admin/analytics: super-admin gate, server-only key, no client SDK, aggregates only", () => {
-  const page = read("app/admin/analytics/page.tsx");
-  assert.match(page, /await requireSuperAdmin\(\);/);
-  assert.ok(page.indexOf("await requireSuperAdmin()") < page.indexOf("await getAnalyticsDashboard()"), "authorize before loading");
-  assert.doesNotMatch(page, /"use client"|posthog-js|@vercel\/analytics|components\/analytics|<iframe/);
-  assert.doesNotMatch(page, /supadmin\/01|participant_id/);
-  assert.match(read("lib/auth.ts"), /export async function requireSuperAdmin\(\): Promise<ProfileRow> \{\n\s+const access = await requireAdminAccess\(\);\n\s+if \(!access\.isSuper\) redirect\("\/admin"\);/);
-  const loader = read("lib/data/analytics-dashboard.ts");
-  assert.match(loader, /^import "server-only";/);
-  assert.match(loader, /process\.env\.POSTHOG_PERSONAL_API_KEY/);
-  for (const f of [...files("app"), ...files("components"), ...files("lib")]) {
-    if (f === "lib/data/analytics-dashboard.ts" || f.endsWith(".test.ts")) continue;
-    assert.doesNotMatch(read(f), /process\.env\.POSTHOG_(PERSONAL_API_KEY|PROJECT_ID)|NEXT_PUBLIC_POSTHOG_(PERSONAL|PROJECT_ID)/, f);
-  }
-  for (const f of files("components")) assert.doesNotMatch(read(f), /analytics-dashboard|lib\/analytics\/dashboard/, f);
-  assert.doesNotMatch(read("lib/analytics/dashboard.ts"), /NEXT_PUBLIC_/);
-  assert.doesNotMatch(read("app/admin/layout.tsx"), /AnalyticsProvider|posthog|@vercel\/analytics/i);
-  // Sidebar: visible only to super admins.
-  const sidebar = read("components/admin/admin-sidebar.tsx");
-  assert.match(sidebar, /\{ href: "\/admin\/analytics", label: "Analytics", icon: BarChart3, superOnly: true \}/);
-  assert.match(sidebar, /\(l\.superOnly \? isSuper : true\) &&/);
-  assert.doesNotMatch(sidebar, /supadmin/);
-});
+// The /admin/analytics dashboard, heatmaps and proxy are covered by
+// lib/analytics-d026.test.ts (D-026 replaced the D-025 aggregate client).

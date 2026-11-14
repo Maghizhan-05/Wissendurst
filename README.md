@@ -230,14 +230,41 @@ With a token:
   `capture_pageview: 'history_change'` + `capture_pageleave: true`, Vercel
   uses its own route tracking — one source per tool. (Vercel may send the
   referrer, which browsers reduce to the origin for cross-site visits.)
-- **`/admin/analytics`** (super admins only, `requireSuperAdmin()`): 30-day
-  aggregates — page views, sessions, top public paths, the
-  `registration_started → free_registration_confirmed` funnel, exception volume
-  and top exception types — read server-side from the PostHog EU Query API
-  (`lib/analytics/dashboard.ts`, `lib/data/analytics-dashboard.ts`). No
-  visitors, distinct IDs, sessions, replays or exception payloads; the page
-  loads no client analytics SDK. Missing or rejected credentials show a
-  "not configured" / "rejected" notice instead of failing.
+- **`/admin/analytics`** (super admins only, `requireSuperAdmin()`; D-026):
+  a Recharts dashboard styled with the site tokens. GET `?range=7|30|90`
+  (default 30). KPI strip (page views, sessions, registrations started, free
+  confirmed, conversion); daily page views/sessions with toggleable series;
+  the `registration_started → free_registration_confirmed` funnel (ordered,
+  14-day window) with conversion and drop-off; ranked top public paths;
+  device/browser/OS shares (major names only, no versions, any bucket under 5
+  views folded into Other); daily errors and top error types; and a saved
+  heatmap gallery/viewer.
+  - Data: PostHog EU Query API (`lib/analytics/dashboard.ts`), typed
+    `TrendsQuery` (daily `$pageview`/`$exception`) and `FunnelsQuery`, plus
+    aggregate HogQL for unique sessions, paths and categories. The Trends and
+    Funnels parsers are strict; an unexpected shape falls back to proven HogQL
+    totals (the funnel then shows "event totals"). Up to 4 parallel requests,
+    10 s timeout, 60 s server Data Cache, no client polling. Each panel fails
+    on its own; a page-level notice distinguishes "not configured", "rejected"
+    and "missing query:read".
+  - Heatmaps (`lib/analytics/heatmaps.ts`): read-only `GET /saved/`, `GET
+    /saved/:short_id/` and `GET /heatmap_screenshots/:id/content/?width=`.
+    Only same-origin (`NEXT_PUBLIC_SITE_URL` / Vercel production domain)
+    heatmaps of the six public routes are listed; creator identity, raw render
+    errors and query/hash data are dropped. Screenshots stream through
+    `/admin/analytics/heatmaps/:shortId/screenshot?width=` which re-runs
+    `requireSuperAdmin()`, validates the ID and width (100–3000), adds the
+    bearer key server-side, accepts only JPEG/PNG/WebP up to 20 MB, answers
+    `Cache-Control: private` and never forwards upstream headers or provider
+    errors. Missing `heatmap:read`, rejection, no saved heatmaps, still
+    rendering (202) and failed renders each have their own state.
+  - **Click/scroll overlays are not implemented yet.** PostHog documents
+    `GET /api/projects/:id/heatmaps/` (needs `heatmap:read`), but the live
+    response shape hasn't been observed with the production key, so the viewer
+    shows the saved screenshot and points to PostHog for overlays. Adding them
+    needs one real response captured and fixture-tested first.
+  - No visitors, distinct IDs, sessions, replays or exception payloads; the
+    admin pages load no client analytics SDK.
 
 ### Remaining console / provider actions (owner)
 
@@ -254,11 +281,15 @@ With a token:
    this repository; adding it is a separate approval. Never serve source maps
    publicly.
 4. **Dashboard read credential:** PostHog → Settings → Personal API keys →
-   create a key scoped to **this project only** with **`query:read`** only. In
-   Vercel (Production, *not* exposed to the browser) set
+   create (or edit) a key scoped to **this project only** with exactly
+   **`query:read`** and **`heatmap:read`** — no write, `session_recording` or
+   `person` scopes. In Vercel (Production, *not* exposed to the browser) set
    `POSTHOG_PERSONAL_API_KEY` and `POSTHOG_PROJECT_ID` (numeric, from Project
    settings), then redeploy. Rotate it if ever leaked; never prefix it
    `NEXT_PUBLIC_`.
+5. **Saved heatmaps:** in PostHog → Heatmaps, enter a public page URL on the
+   production origin (e.g. `/` or an event page) and **Save** it; the gallery
+   shows it once the screenshot has rendered.
 
 ### PostHog console checklist (owner)
 

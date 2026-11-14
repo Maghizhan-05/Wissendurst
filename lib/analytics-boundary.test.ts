@@ -36,7 +36,9 @@ function files(dir: string): string[] {
  * allowed; they are guarded separately below.
  */
 const ANALYTICS_USE =
-  /posthog-js|@vercel\/analytics|components\/analytics|analytics-provider|posthog-runtime|vercel-analytics|\btrack\(|captureError\(|captureException\(|posthog\.|window\.va\b/i;
+  /posthog-js|@vercel\/analytics|components\/analytics|analytics-provider|posthog-runtime|vercel-analytics|\btrack\(|captureError\(|captureException\(|window\.va\b/i;
+/** SDK member access in code (`posthog.capture(…)`); case-sensitive so prose like "PostHog." is not code. */
+const SDK_CALL = /\bposthog\.[a-z_$]/;
 
 test("no client analytics SDK (PostHog or Vercel) in any sensitive route tree, action or server code", () => {
   const sensitive = [
@@ -64,10 +66,14 @@ test("no client analytics SDK (PostHog or Vercel) in any sensitive route tree, a
     } catch {
       continue; // directory may not exist
     }
-    for (const f of list) assert.doesNotMatch(read(f), ANALYTICS_USE, f);
+    for (const f of list) {
+      assert.doesNotMatch(read(f), ANALYTICS_USE, f);
+      assert.doesNotMatch(read(f), SDK_CALL, f);
+    }
   }
   assert.doesNotMatch(read("proxy.ts"), /posthog|analytics/i, "proxy.ts untouched");
   assert.doesNotMatch(read("app/layout.tsx"), ANALYTICS_USE, "root layout never mounts analytics");
+  assert.doesNotMatch(read("app/layout.tsx"), SDK_CALL, "root layout never calls the SDK");
 });
 
 test("only the runtime imports the SDK, via the bundled no-external entry, loaded dynamically", () => {
