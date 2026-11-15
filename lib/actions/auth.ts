@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { siteUrl } from "@/lib/utils";
+import { passwordResetResult } from "@/lib/auth/password-reset";
 import { notifyWelcome } from "@/lib/email/notify";
 import {
   BUCKETS,
@@ -187,14 +188,17 @@ export async function requestPasswordReset(
     return { ok: false, error: firstError(parsed.error.flatten().fieldErrors) };
   }
   const supabase = await createClient();
-  await supabase.auth.resetPasswordForEmail(parsed.data.email, {
+  const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
     redirectTo: siteUrl("/auth/callback?next=/reset-password"),
   });
-  // Always report success to avoid leaking which emails are registered.
-  return {
-    ok: true,
-    message: "If that email is registered, a reset link is on its way.",
-  };
+  if (error) {
+    // Auth refused to send (rate limit / SMTP / unauthorised recipient). Log the
+    // code only — never the address — so it shows in the function logs.
+    console.error("resetPasswordForEmail failed:", { status: error.status, code: error.code });
+  }
+  // Neutral success for unknown emails (Auth returns no error for them); a
+  // real send failure is reported instead of a false "on its way".
+  return passwordResetResult(error);
 }
 
 export async function updatePassword(
