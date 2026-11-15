@@ -20,6 +20,8 @@ import {
   type RegistrationState,
 } from "@/lib/payment-intent";
 import type { RegistrationRow } from "@/types/database";
+import { WithdrawRegistration } from "@/components/registration/withdraw-registration";
+import { TEAM_MEMBER_WITHDRAW_GUIDANCE, withdrawalKind } from "@/lib/registration-withdrawal";
 
 type TeamHead = {
   id: string;
@@ -121,6 +123,9 @@ function RegisterCtaBody({
               ? "You're on a confirmed team for this event."
               : "You're on a team for this event — your team head completes the payment. It appears in My events once the payment is verified."}
           </div>
+          {existing.registration_status !== "confirmed" && (
+            <p className="text-sm text-muted">{TEAM_MEMBER_WITHDRAW_GUIDANCE}</p>
+          )}
           <ButtonLink
             href={existing.registration_status === "confirmed" ? "/dashboard/registrations" : "/events"}
             size="lg"
@@ -137,6 +142,7 @@ function RegisterCtaBody({
       existing.payment_status === "rejected" ||
       existing.payment_status === "duplicate";
     const holdUntil = timedHoldDeadline(existing.state ?? null);
+    const withdrawKind = withdrawalKind(existing);
     return (
       <div className="flex flex-col gap-3">
         {holdUntil && (
@@ -171,6 +177,9 @@ function RegisterCtaBody({
             Browse more
           </ButtonLink>
         </div>
+        {(withdrawKind === "solo" || withdrawKind === "team_head") && (
+          <WithdrawRegistration registrationId={existing.id} slug={slug} kind={withdrawKind} />
+        )}
       </div>
     );
   }

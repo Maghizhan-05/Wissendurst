@@ -18,6 +18,8 @@ import { resolveEventUpiId } from "@/lib/data/events";
 import { upiQrDataUrl } from "@/lib/payment";
 import { getDefaultEventUpiId } from "@/lib/data/payment-settings";
 import { formatINR } from "@/lib/utils";
+import { WithdrawRegistration } from "@/components/registration/withdraw-registration";
+import { TEAM_MEMBER_WITHDRAW_GUIDANCE, withdrawalKind } from "@/lib/registration-withdrawal";
 import {
   HOLD_HOURS,
   formatHoldDeadline,
@@ -32,7 +34,7 @@ const BLOCK_COPY: Record<
 > = {
   team_member: {
     title: "Your team head pays",
-    body: "This registration is part of a team. Your team head completes the payment for everyone.",
+    body: `This registration is part of a team. Your team head completes the payment for everyone. ${TEAM_MEMBER_WITHDRAW_GUIDANCE}`,
   },
   archived: {
     title: "Payments are closed",
@@ -111,6 +113,8 @@ export default async function PaymentPage({
     isTeamHead &&
     !teamEditable &&
     (hasEvidence || registration.payment_status !== "unpaid");
+  // D-029: an eligible solo intent or team head may withdraw before paying.
+  const withdrawKind = withdrawalKind(registration, team?.members.length);
   // Rejected payment (0031): the same registration takes new evidence.
   const rejected = registration.payment_status === "rejected" && !block;
   const rejection = rejected ? await getLatestPaymentRejection(registration.id) : null;
@@ -315,6 +319,12 @@ export default async function PaymentPage({
                 </div>
               </div>
           </PayPanelGuard>
+
+          {(withdrawKind === "solo" || withdrawKind === "team_head") && (
+            <div className="mt-8">
+              <WithdrawRegistration registrationId={registration.id} slug={event.slug} kind={withdrawKind} />
+            </div>
+          )}
         </TeamEditScope>
       )}
     </div>

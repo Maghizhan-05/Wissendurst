@@ -151,7 +151,8 @@ select pg_temp.expect_error($q$select public.register_for_event(pg_temp.ev('f'))
 
 -- 11. Cancel releases the seat; cancelled row is reusable
 select (public.register_for_event(pg_temp.ev('c'))).id is not null as u5_c;
-select (public.cancel_registration((pg_temp.reg(5,'c')).id)).registration_status = 'cancelled' as u5_cancelled;
+-- 0036: participants withdraw through cancel_my_registration (legacy cancel_registration revoked).
+select (public.cancel_my_registration((pg_temp.reg(5,'c')).id)).registration_status = 'cancelled' as u5_cancelled;
 select pg_temp.expect_error(format($q$select public.submit_payment(%L, 'UTR666666', null)$q$, (pg_temp.reg(5,'c')).id), 'REGISTRATION_CANCELLED');
 select pg_temp.as_user(6);
 select (public.register_for_event(pg_temp.ev('c'))).id is not null as u6_takes_cancelled_seat;

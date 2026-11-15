@@ -95,7 +95,7 @@ select pg_temp.check(pg_temp.snapshot('b') = pg_temp.saved('b_snap') and pg_temp
   'B: refused verification changed no rows and wrote no audit entry');
 select pg_temp.check(pg_temp.seats('b') = 1, 'B: still exactly one seat taken');
 select pg_temp.as_user(2);
-select (public.cancel_registration((pg_temp.reg(2,'b')).id)).registration_status = 'cancelled';
+select (public.cancel_my_registration((pg_temp.reg(2,'b')).id)).registration_status = 'cancelled';
 select pg_temp.as_user(0);
 select (public.admin_set_payment_status((pg_temp.reg(1,'b')).id, 'verified', null)).registration_status = 'confirmed';
 select pg_temp.check(pg_temp.seats('b') = 1, 'B: expired intent re-acquired the freed seat on verification');
@@ -128,8 +128,10 @@ select pg_temp.save('t_snap', pg_temp.snapshot('t'));
 select pg_temp.as_user(0);
 select pg_temp.expect_error(format($q$select public.admin_set_payment_status(%L, 'verified', null)$q$, (pg_temp.reg(1,'t')).id), 'EVENT_FULL_AT_VERIFICATION');
 select pg_temp.check(pg_temp.snapshot('t') = pg_temp.saved('t_snap'), 'D: no partial team confirmation (all-or-nothing)');
-select pg_temp.as_user(4);
-select (public.cancel_registration((pg_temp.reg(4,'t')).id)).registration_status = 'cancelled';
+-- 0036: a non-head teammate can no longer self-cancel; free the seat as an operator would.
+reset role;
+update public.registrations set registration_status = 'cancelled' where id = (pg_temp.reg(4,'t')).id;
+set role authenticated;
 select pg_temp.as_user(0);
 select (public.admin_set_payment_status((pg_temp.reg(1,'t')).id, 'verified', null)).registration_status = 'confirmed';
 reset role;

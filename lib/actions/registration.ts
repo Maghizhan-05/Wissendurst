@@ -43,6 +43,9 @@ const RPC_ERRORS: Record<string, string> = {
   ROSTER_LOCKED:
     "This team can't be changed any more — payment has been submitted, or the seat hold has ended.",
   REGISTRATION_NOT_FOUND: "That registration wasn't found, or you aren't its team head.",
+  NOT_TEAM_HEAD: "Only your team head can withdraw the team's registration — ask them.",
+  NOT_CANCELLABLE:
+    "This registration can't be withdrawn any more — a payment has been submitted or it has already been processed.",
 };
 
 function mapRpcError(message: string | undefined): string {
@@ -202,15 +205,15 @@ export async function lookupTeamMember(
     excludeTeamId = head.team_id;
   }
 
-  // Cancelled rows and expired payment intents don't block a new team.
-  const { data: blocked, error: blockErr } = await admin.rpc(
-    "registration_blocks_new",
-    excludeTeamId
-      ? { p_profile_id: p.id, p_event_id: eventId, p_exclude_team_id: excludeTeamId }
-      : { p_profile_id: p.id, p_event_id: eventId },
-  );
+  // Cancelled rows and expired payment intents don't block a new team, and an
+  // eligible solo unpaid intent is absorbed by the team RPC (0036).
+  const { data: blocked, error: blockErr } = await admin.rpc("registration_blocks_team_add", {
+    p_profile_id: p.id,
+    p_event_id: eventId,
+    p_exclude_team_id: excludeTeamId,
+  });
   if (blockErr) {
-    console.error("registration_blocks_new failed:", blockErr);
+    console.error("registration_blocks_team_add failed:", blockErr);
     return { ok: false, error: "Couldn't check that participant. Try again." };
   }
   if (blocked === true)
@@ -339,16 +342,38 @@ export async function editTeamRoster(formData: FormData): Promise<ActionResult> 
 }
 
 /** Cancels the current user's still-unpaid registration. */
-export async function cancelRegistration(formData: FormData): Promise<ActionResult> {
+/**
+ * D-029: withdraws the caller's genuinely unpaid registration through
+ * cancel_my_registration (0036): a solo intent, or — for a team head — the
+ * whole unpaid team. The database checks ownership, head status and payment
+ * evidence under the event lock. No email is sent.
+ */
+export async function withdrawRegistration(
+  _prev: ActionResult | null,
+  formData: FormData,
+): Promise<ActionResult> {
   const id = String(formData.get("registration_id") ?? "");
+  const slug = String(formData.get("slug") ?? "");
   if (!id) return { ok: false, error: "Missing registration." };
 
   const supabase = await createClient();
-  const { error } = await supabase.rpc("cancel_registration", {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { error } = await supabase.rpc("cancel_my_registration", {
     p_registration_id: id,
   });
+  if (error) {
+    console.error("cancel_my_registration failed:", { code: error.code, message: error.message });
+    return { ok: false, error: mapRpcError(error.message) };
+  }
 
-  if (error) return { ok: false, error: "Could not cancel registration." };
   revalidatePath("/dashboard/registrations");
-  return { ok: true };
+  revalidatePath("/dashboard");
+  revalidatePath(`/dashboard/payment/${id}`);
+  if (slug) revalidatePath(`/events/${slug}`);
+  // Back to the event, which is registerable again.
+  return { ok: true, next: slug ? `/events/${encodeURIComponent(slug)}` : "/events" };
 }
