@@ -217,7 +217,7 @@ aggregate outcomes, or deliberately **Check SMTP connection** (authentication /
 connection only; sends no test email). Confirmed registration detail pages
 provide a deliberate **Resend confirmation** action, including all confirmed
 team members. Each explicit request is claimed once; there is a one-minute
-cooldown per registration/team, no automatic retry and no historical backfill.
+cooldown per registration/team and no automatic retry.
 Refresh before making another deliberate request. A connection check plus an
 approved resend and actual inbox receipt are required to verify delivery.
 
@@ -246,3 +246,21 @@ Set `OCR_API_KEY`, or continue with manual reference entry. OCR proposes a value
 ### Analytics says “not configured” or heatmaps are unavailable
 
 Set the server-only PostHog project ID and personal key. The key requires `query:read`; saved heatmaps additionally require `heatmap:read`. Create and save at least one heatmap for an approved public page in PostHog if the gallery is empty.
+
+### Temporary historical confirmation backfill
+
+Super admins can use the temporary backfill control at `/admin/email` after
+connection health has been verified. Inventory is computed in the database:
+only confirmed + verified solo registrations or canonical team heads qualify.
+A unit remains eligible while its accepted confirmation count is below its
+current confirmed recipient count. Partial teams are retried as a whole, so
+already-accepted members may receive another confirmation.
+
+Each explicitly confirmed click attempts at most five units, using fresh
+resend claims and a 400 ms pause between units. Inventory is rechecked before
+and after each claim. No recipient/registration IDs are accepted from the form;
+normal templates and private event links come from the database. Cooldown or
+already-completed units are skipped; there is no automatic retry. Refresh after
+each batch, inspect outcomes, and confirm inbox receipt separately. Once the
+remaining count is zero and an operator verifies completion, remove this temporary
+control and its action. This does not change Supabase Auth password recovery.
