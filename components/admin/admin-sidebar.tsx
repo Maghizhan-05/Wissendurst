@@ -27,6 +27,7 @@ type NavLink = {
   badge?: number;
   /** Visible only when the server says canViewAnalytics (requireAnalyticsAdmin identity). */
   analyticsOnly?: boolean;
+  emailOnly?: boolean;
 };
 
 export function AdminSidebar({
@@ -52,6 +53,7 @@ export function AdminSidebar({
     { href: "/admin/general-registration", label: "General Registration", icon: Ticket, scope: "payments" },
     { href: "/admin/collections", label: "Collections", icon: TrendingUp, scope: "payments" },
     { href: "/admin/users", label: "Users", icon: Users, scope: "signups" },
+    { href: "/admin/email", label: "Email health", icon: ClipboardList, emailOnly: true },
     { href: "/admin/content", label: "Site content", icon: LayoutTemplate, scope: "content" },
     // D-026: analytics — only the single analytics admin (server-derived flag).
     { href: "/admin/analytics", label: "Analytics", icon: BarChart3, analyticsOnly: true },
@@ -59,6 +61,7 @@ export function AdminSidebar({
 
   const visible = links.filter(
     (l) =>
+      (!l.emailOnly || isSuper) &&
       (l.analyticsOnly ? canViewAnalytics === true : true) &&
       (!l.scope ||
         isSuper ||

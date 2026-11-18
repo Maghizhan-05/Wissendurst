@@ -63,10 +63,10 @@ test("only the successful-registration emails can carry the link", () => {
   assert.match(templates, /\$\{paid \? whatsappGroupEmailBlock\(whatsappUrl\) : ""\}/);
   const notify = read("lib/email/notify.ts");
   assert.equal(notify.match(/loadEventPrivateLinks\(/g)?.length, 2, "defined once, used once (0035 rename)");
-  const confirmed = notify.slice(notify.indexOf("export async function notifyRegistrationConfirmed("));
+  const confirmed = notify.slice(notify.indexOf("async function notifyRegistrationConfirmedImpl("));
   const body = confirmed.slice(0, confirmed.indexOf("\nexport "));
-  assert.match(body, /loadEventPrivateLinks\(data\.event\.id\)/);
-  assert.match(body, /registration_status !== "confirmed"\) return;/);
+  assert.match(body, /loadEventPrivateLinks\(data\.event\.id, context\)/);
+  assert.match(body, /registration_status !== "confirmed" \|\| data\.registration\.payment_status !== "verified"/);
 });
 
 test("the link never touches public event data", () => {

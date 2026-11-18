@@ -662,8 +662,8 @@ export async function setPaymentStatus(
   if (status === "rejected" && previous !== "rejected") {
     try {
       await notifyPaymentRejected(registrationId, note);
-    } catch (e) {
-      console.error("payment-rejected email failed:", e);
+    } catch {
+      console.error("payment-rejected email failed:", { errorClass: "unknown", errorCode: "UNKNOWN" });
     }
   }
 
@@ -672,8 +672,8 @@ export async function setPaymentStatus(
   if (status === "verified" && !wasVerified) {
     try {
       await notifyRegistrationConfirmed(registrationId);
-    } catch (e) {
-      console.error("payment-confirmed email failed:", e);
+    } catch {
+      console.error("payment-confirmed email failed:", { errorClass: "unknown", errorCode: "UNKNOWN" });
     }
   }
 

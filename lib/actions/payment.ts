@@ -201,8 +201,8 @@ export async function confirmPayment(
   if (reg.payment_status === "under_review") {
     try {
       await notifyPaymentUnderReview(registrationId);
-    } catch (e) {
-      console.error("payment email failed:", e);
+    } catch {
+      console.error("payment email failed:", { errorClass: "unknown", errorCode: "UNKNOWN" });
     }
   }
 

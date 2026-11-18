@@ -157,8 +157,8 @@ export async function signUp(_prev: AuthState, formData: FormData): Promise<Auth
   if (participantId) {
     try {
       await notifyWelcome(userId);
-    } catch (e) {
-      console.error("welcome email failed:", e);
+    } catch {
+      console.error("welcome email failed:", { errorClass: "unknown", errorCode: "UNKNOWN" });
     }
   }
 
@@ -292,8 +292,8 @@ export async function resubmitApplication(
 
   try {
     await notifyWelcome(user.id);
-  } catch (e) {
-    console.error("welcome email failed:", e);
+  } catch {
+    console.error("welcome email failed:", { errorClass: "unknown", errorCode: "UNKNOWN" });
   }
   revalidatePath("/", "layout");
   revalidatePath("/admin/users");

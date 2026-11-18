@@ -1,6 +1,8 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { sendMail } from "./mailer";
+import { deliverLogged, auditNotificationFailure } from "./audit";
+import { notificationJob, type DeliveryContext } from "./record";
+import type { DeliveryOutcome } from "./delivery";
 import {
   generalRegistrationRejectedEmail,
   generalRegistrationSubmittedEmail,
@@ -32,18 +34,17 @@ async function loadRegistration(registrationId: string): Promise<{
     .maybeSingle();
   if (error) {
     // Emails are best-effort, but a failed lookup must be visible in the logs.
-    console.error("notify: registration lookup failed:", error);
-    return null;
+    throw new Error("LOOKUP_FAILED");
   }
-  if (!reg) return null;
+  if (!reg) throw new Error("REGISTRATION_MISSING");
 
   const registration = reg as RegistrationRow & { event: EventRow };
-  const { data: profile } = await admin
+  const { data: profile, error: profileError } = await admin
     .from("profiles")
     .select("*")
     .eq("id", registration.profile_id)
     .maybeSingle();
-  if (!profile) return null;
+  if (profileError || !profile) throw new Error("PROFILE_MISSING");
 
   return {
     registration,
@@ -54,19 +55,20 @@ async function loadRegistration(registrationId: string): Promise<{
 
 async function loadProfile(userId: string): Promise<ProfileRow | null> {
   const admin = createAdminClient();
-  const { data } = await admin
+  const { data, error } = await admin
     .from("profiles")
     .select("*")
     .eq("id", userId)
     .maybeSingle();
-  return (data as ProfileRow) ?? null;
+  if (error || !data) throw new Error("PROFILE_MISSING");
+  return data as ProfileRow;
 }
 
-export async function notifyWelcome(userId: string): Promise<void> {
+async function notifyWelcomeImpl(userId: string): Promise<void> {
   const p = await loadProfile(userId);
   if (!p) return;
   const { subject, html } = welcomeEmail(p.full_name, p.participant_id ?? "");
-  await sendMail({ to: p.email, subject, html });
+  await deliverLogged({ kind: "welcome", source: "automatic" }, { to: p.email, subject, html });
 }
 
 /**
@@ -75,7 +77,7 @@ export async function notifyWelcome(userId: string): Promise<void> {
  * goes out without them.
  */
 async function loadEventPrivateLinks(
-  eventId: string,
+  eventId: string, context: DeliveryContext,
 ): Promise<{ whatsappUrl: string | null; googleFormUrl: string | null }> {
   const admin = createAdminClient();
   const { data, error } = await admin
@@ -84,7 +86,7 @@ async function loadEventPrivateLinks(
     .eq("event_id", eventId)
     .maybeSingle();
   if (error) {
-    console.error("notify: event private links lookup failed:", error);
+    await auditNotificationFailure(context);
     return { whatsappUrl: null, googleFormUrl: null };
   }
   const row = data as { whatsapp_group_url: string | null; google_form_url: string | null } | null;
@@ -97,35 +99,37 @@ async function loadEventPrivateLinks(
  * A team gets one email per (non-cancelled) member. Never call this for a
  * payment intent that is still pending.
  */
-export async function notifyRegistrationConfirmed(
-  registrationId: string,
-): Promise<void> {
+async function notifyRegistrationConfirmedImpl(
+  registrationId: string, context: DeliveryContext,
+): Promise<DeliveryOutcome[]> {
   const data = await loadRegistration(registrationId);
-  if (!data || data.registration.registration_status !== "confirmed") return;
+  if (!data || data.registration.registration_status !== "confirmed" || data.registration.payment_status !== "verified") throw new Error("NOT_CONFIRMED");
 
   const admin = createAdminClient();
   let recipientIds = [data.registration.profile_id];
   let teamAmount = data.registration.amount;
   let teamName: string | null | undefined = undefined; // undefined = not a team
   if (data.registration.team_id) {
-    const { data: rows } = await admin
+    const { data: rows, error: teamError } = await admin
       .from("registrations")
-      .select("profile_id, amount, is_team_head, registration_status")
+      .select("profile_id, amount, is_team_head, registration_status, payment_status")
       .eq("team_id", data.registration.team_id);
+    if (teamError) throw new Error("TEAM_LOOKUP_FAILED");
     const team = (rows ?? []) as Pick<
       RegistrationRow,
-      "profile_id" | "amount" | "is_team_head" | "registration_status"
+      "profile_id" | "amount" | "is_team_head" | "registration_status" | "payment_status"
     >[];
     recipientIds = team
-      .filter((r) => r.registration_status === "confirmed")
+      .filter((r) => r.registration_status === "confirmed" && r.payment_status === "verified")
       .map((r) => r.profile_id);
     teamAmount = team.find((r) => r.is_team_head)?.amount ?? teamAmount;
     if (team.length > 1) {
-      const { data: t } = await admin
+      const { data: t, error: teamNameError } = await admin
         .from("teams")
         .select("name")
         .eq("id", data.registration.team_id)
         .maybeSingle();
+      if (teamNameError) throw new Error("TEAM_LOOKUP_FAILED");
       teamName = (t as { name: string | null } | null)?.name ?? null;
     }
   }
@@ -133,25 +137,24 @@ export async function notifyRegistrationConfirmed(
   // Private event links, only in this successful-registration email, to each
   // confirmed participant / team member: the WhatsApp group (0034) always,
   // the Google Form (0035, D-023) only in the PAID payment-confirmed email.
-  const { whatsappUrl, googleFormUrl } = await loadEventPrivateLinks(data.event.id);
+  const { whatsappUrl, googleFormUrl } = await loadEventPrivateLinks(data.event.id, context);
 
+  const outcomes: DeliveryOutcome[] = [];
   for (const profileId of recipientIds) {
-    const p =
-      profileId === data.profile.id ? data.profile : await loadProfile(profileId);
-    if (!p) continue;
-    const { subject, html } =
-      teamAmount === 0
+    const outcome = await notificationJob(async () => {
+      const p = profileId === data.profile.id ? data.profile : await loadProfile(profileId);
+      if (!p) throw new Error("PROFILE_MISSING");
+      const { subject, html } = teamAmount === 0
         ? registrationEmail(p.full_name, p.participant_id ?? "", data.event, 0, teamName, whatsappUrl)
         : paymentConfirmedEmail(p.full_name, data.event, teamName, whatsappUrl, googleFormUrl);
-    try {
-      await sendMail({ to: p.email, subject, html });
-    } catch (e) {
-      console.error(`confirmation email to ${profileId} failed:`, e);
-    }
+      return deliverLogged(context, { to: p.email, subject, html });
+    }, () => auditNotificationFailure(context));
+    outcomes.push(outcome ?? { status: "failed", errorClass: "unknown", errorCode: "UNKNOWN" });
   }
+  return outcomes;
 }
 
-export async function notifyPaymentUnderReview(registrationId: string): Promise<void> {
+async function notifyPaymentUnderReviewImpl(registrationId: string): Promise<void> {
   const data = await loadRegistration(registrationId);
   if (!data) return;
   const { subject, html } = paymentUnderReviewEmail(
@@ -161,15 +164,15 @@ export async function notifyPaymentUnderReview(registrationId: string): Promise<
     data.registration.transaction_id,
     data.registration.id,
   );
-  await sendMail({ to: data.profile.email, subject, html });
+  await deliverLogged({ kind: "payment_status", source: "automatic", registrationId }, { to: data.profile.email, subject, html });
 }
 
 /** Payment rejected: tell the payer (team head) how to submit new evidence. */
-export async function notifyPaymentRejected(registrationId: string, note: string | null): Promise<void> {
+async function notifyPaymentRejectedImpl(registrationId: string, note: string | null): Promise<void> {
   const data = await loadRegistration(registrationId);
   if (!data || data.registration.payment_status !== "rejected") return;
   const { subject, html } = paymentRejectedEmail(data.profile.full_name, data.event, registrationId, note);
-  await sendMail({ to: data.profile.email, subject, html });
+  await deliverLogged({ kind: "payment_status", source: "automatic", registrationId }, { to: data.profile.email, subject, html });
 }
 
 async function loadGeneralRegistration(id: string): Promise<{
@@ -177,15 +180,15 @@ async function loadGeneralRegistration(id: string): Promise<{
   profile: ProfileRow;
 } | null> {
   const admin = createAdminClient();
-  const { data } = await admin.from("general_registrations").select("*").eq("id", id).maybeSingle();
-  if (!data) return null;
+  const { data, error } = await admin.from("general_registrations").select("*").eq("id", id).maybeSingle();
+  if (error || !data) throw new Error("GENERAL_REGISTRATION_MISSING");
   const gr = data as GeneralRegistrationRow;
   const profile = await loadProfile(gr.profile_id);
   return profile ? { gr, profile } : null;
 }
 
 /** General Registration payment entered review (UTR submitted). */
-export async function notifyGeneralRegistrationSubmitted(id: string): Promise<void> {
+async function notifyGeneralRegistrationSubmittedImpl(id: string): Promise<void> {
   const d = await loadGeneralRegistration(id);
   if (!d || d.gr.status !== "under_review") return;
   const { subject, html } = generalRegistrationSubmittedEmail(
@@ -193,11 +196,11 @@ export async function notifyGeneralRegistrationSubmitted(id: string): Promise<vo
     d.gr.amount,
     d.gr.transaction_id,
   );
-  await sendMail({ to: d.profile.email, subject, html });
+  await deliverLogged({ kind: "payment_status", source: "automatic" }, { to: d.profile.email, subject, html });
 }
 
 /** Verified: announces the new GR participant ID. */
-export async function notifyGeneralRegistrationVerified(id: string): Promise<void> {
+async function notifyGeneralRegistrationVerifiedImpl(id: string): Promise<void> {
   const d = await loadGeneralRegistration(id);
   if (!d || d.gr.status !== "verified" || !d.gr.new_participant_id) return;
   const { subject, html } = generalRegistrationVerifiedEmail(
@@ -205,12 +208,44 @@ export async function notifyGeneralRegistrationVerified(id: string): Promise<voi
     d.gr.previous_participant_id,
     d.gr.new_participant_id,
   );
-  await sendMail({ to: d.profile.email, subject, html });
+  await deliverLogged({ kind: "payment_status", source: "automatic" }, { to: d.profile.email, subject, html });
 }
 
-export async function notifyGeneralRegistrationRejected(id: string): Promise<void> {
+async function notifyGeneralRegistrationRejectedImpl(id: string): Promise<void> {
   const d = await loadGeneralRegistration(id);
   if (!d || d.gr.status !== "rejected") return;
   const { subject, html } = generalRegistrationRejectedEmail(d.profile.full_name, d.gr.review_note);
-  await sendMail({ to: d.profile.email, subject, html });
+  await deliverLogged({ kind: "payment_status", source: "automatic" }, { to: d.profile.email, subject, html });
+}
+
+export async function notifyWelcome(userId: string): Promise<void> {
+ await notificationJob(() => notifyWelcomeImpl(userId), () => auditNotificationFailure({ kind: "welcome", source: "automatic" }));
+}
+
+export async function notifyPaymentUnderReview(registrationId: string): Promise<void> {
+ await notificationJob(() => notifyPaymentUnderReviewImpl(registrationId), () => auditNotificationFailure({ kind: "payment_status", source: "automatic", registrationId }));
+}
+
+export async function notifyPaymentRejected(registrationId: string, note: string | null): Promise<void> {
+ await notificationJob(() => notifyPaymentRejectedImpl(registrationId, note), () => auditNotificationFailure({ kind: "payment_status", source: "automatic", registrationId }));
+}
+
+export async function notifyGeneralRegistrationSubmitted(id: string): Promise<void> {
+ await notificationJob(() => notifyGeneralRegistrationSubmittedImpl(id), () => auditNotificationFailure({ kind: "payment_status", source: "automatic" }));
+}
+
+export async function notifyGeneralRegistrationVerified(id: string): Promise<void> {
+ await notificationJob(() => notifyGeneralRegistrationVerifiedImpl(id), () => auditNotificationFailure({ kind: "payment_status", source: "automatic" }));
+}
+
+export async function notifyGeneralRegistrationRejected(id: string): Promise<void> {
+ await notificationJob(() => notifyGeneralRegistrationRejectedImpl(id), () => auditNotificationFailure({ kind: "payment_status", source: "automatic" }));
+}
+
+/** Automatic callers remain best effort; manual calls return sanitized per-send outcomes. */
+export async function notifyRegistrationConfirmed(
+ registrationId: string, manual?: { actorId: string },
+): Promise<DeliveryOutcome[]> {
+ const context: DeliveryContext = { kind: "registration_confirmed", source: manual ? "manual" : "automatic", registrationId, actorId: manual?.actorId ?? null };
+ return (await notificationJob(() => notifyRegistrationConfirmedImpl(registrationId, context), () => auditNotificationFailure(context))) ?? [{ status: "failed", errorClass: "unknown", errorCode: "UNKNOWN" }];
 }

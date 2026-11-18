@@ -113,8 +113,8 @@ export async function confirmGeneralPayment(formData: FormData): Promise<Confirm
   if (row.status === "under_review") {
     try {
       await notifyGeneralRegistrationSubmitted(row.id);
-    } catch (e) {
-      console.error("GR submitted email failed:", e);
+    } catch {
+      console.error("GR submitted email failed:", { errorClass: "unknown", errorCode: "UNKNOWN" });
     }
   }
   return { ok: true, status: row.status as PaymentStatus };
@@ -224,8 +224,8 @@ export async function reviewGeneralRegistration(formData: FormData): Promise<GrA
     try {
       if (row.status === "verified") await notifyGeneralRegistrationVerified(row.id);
       else if (row.status === "rejected") await notifyGeneralRegistrationRejected(row.id);
-    } catch (e) {
-      console.error("GR review email failed:", e);
+    } catch {
+      console.error("GR review email failed:", { errorClass: "unknown", errorCode: "UNKNOWN" });
     }
   }
   revalidatePath("/admin/general-registration");

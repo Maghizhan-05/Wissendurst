@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import { RegistrationEmailResend } from "@/components/admin/email-controls";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -77,6 +79,8 @@ export default async function RegistrationDetailPage({
           <dd className="mt-0.5 text-foreground">{reg.event.title}</dd>
         </div>
       </dl>
+
+      {access.isSuper && <RegistrationEmailResend registrationId={id} requestId={randomUUID()} team={Boolean(reg.team)} />}
 
       <section aria-labelledby="contacts" className="mt-6 space-y-3">
         <h2 id="contacts" className="font-display text-lg font-semibold text-foreground">

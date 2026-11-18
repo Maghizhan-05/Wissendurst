@@ -121,8 +121,8 @@ export async function registerForEvent(formData: FormData): Promise<ActionResult
   if (reg.registration_status === "confirmed") {
     try {
       await notifyRegistrationConfirmed(reg.id);
-    } catch (e) {
-      console.error("registration email failed:", e);
+    } catch {
+      console.error("registration email failed:", { errorClass: "unknown", errorCode: "UNKNOWN" });
     }
   }
 
@@ -277,8 +277,8 @@ export async function registerTeam(formData: FormData): Promise<ActionResult> {
   if (reg.registration_status === "confirmed") {
     try {
       await notifyRegistrationConfirmed(reg.id);
-    } catch (e) {
-      console.error("team registration email failed:", e);
+    } catch {
+      console.error("team registration email failed:", { errorClass: "unknown", errorCode: "UNKNOWN" });
     }
   }
 
@@ -333,8 +333,8 @@ export async function editTeamRoster(formData: FormData): Promise<ActionResult> 
   if (reg?.registration_status === "confirmed") {
     try {
       await notifyRegistrationConfirmed(reg.id);
-    } catch (e) {
-      console.error("team confirmation email failed:", e);
+    } catch {
+      console.error("team confirmation email failed:", { errorClass: "unknown", errorCode: "UNKNOWN" });
     }
     redirect("/dashboard/registrations?joined=1");
   }

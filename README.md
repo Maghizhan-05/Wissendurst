@@ -195,6 +195,36 @@ The private `/admin/analytics` dashboard uses server-side aggregate PostHog quer
 5. Deploy and verify signup, private Storage access, registration, payment, and administrator permissions with non-production test accounts before opening registration.
 6. If analytics is enabled, configure its variables for the intended environment and verify both decline and consent paths.
 
+## Application email
+
+Optional, server-only variables: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`,
+`SMTP_PASS`, `MAIL_FROM`. Configure them in your deployment environment and
+redeploy; changing an environment value does not update running deployments.
+The host defaults to Gmail and the port to 465 (TLS); port 587 uses STARTTLS.
+With Gmail, use an App Password, never your account password. `MAIL_FROM`
+defines the sender; otherwise the configured SMTP account is used.
+
+Missing credentials skip application notifications with `not_configured`.
+Provider/network failures are caught and recorded as sanitized `failed`
+attempts; registration and payment success are never rolled back for email.
+`sent` means SMTP accepted the message, **not** inbox delivery. Provider IDs
+are stored only as SHA-256 fingerprints, not raw IDs that may contain email
+addresses. No recipient, email body, credentials or raw provider errors are
+stored in the append-only delivery log.
+
+Super admins can open `/admin/email` to see configuration presence and seven-day
+aggregate outcomes, or deliberately **Check SMTP connection** (authentication /
+connection only; sends no test email). Confirmed registration detail pages
+provide a deliberate **Resend confirmation** action, including all confirmed
+team members. Each explicit request is claimed once; there is a one-minute
+cooldown per registration/team, no automatic retry and no historical backfill.
+Refresh before making another deliberate request. A connection check plus an
+approved resend and actual inbox receipt are required to verify delivery.
+
+These variables configure application notifications only. Supabase Auth
+password-reset/confirmation emails use Supabase's separate SMTP or Send Email
+Hook settings; configuring application SMTP does not configure Auth email.
+
 ## Troubleshooting
 
 ### `supabaseUrl is required`
